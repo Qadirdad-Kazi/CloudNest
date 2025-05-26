@@ -1,0 +1,71 @@
+Test Cases:
+
+1. Authentication
+- Login with valid credentials
+- Login with invalid credentials
+- Password validation
+- Session persistence
+- Logout functionality
+- Role-based access restrictions
+
+2. File Operations
+- Upload single/multiple files
+- Create nested folders
+- Rename files/folders
+- Move files between folders
+- Delete files/folders
+- Star/unstar items
+- Add/remove tags
+- Search functionality
+- View switching (grid/list)
+
+3. File Sharing
+- Generate share links
+- Password protection
+- Link expiration
+- Access control
+- Share revocation
+
+4. Storage Management
+- Storage quota enforcement
+- Upload size limits
+- Storage usage calculation
+- Quota notifications
+
+5. Admin Functions
+- User CRUD operations
+- Storage quota management
+- Activity log viewing
+- Analytics data accuracy
+- System settings
+
+6. UI/UX
+- Responsive layout
+- Dark mode toggle
+- Loading states
+- Error handling
+- Drag and drop
+- Context menu actions
+- Bulk selections
+
+7. Security
+- Role permissions
+- Input sanitization
+- XSS prevention
+- CSRF protection
+- File type validation
+
+8. Performance
+- Large file handling
+- Concurrent uploads
+- Search response time
+- UI responsiveness
+- Memory usage
+
+9. Edge Cases
+- Network interruptions
+- Invalid file types
+- Quota exceeded
+- Concurrent operations
+- Browser compatibility
+- Mobile responsiveness

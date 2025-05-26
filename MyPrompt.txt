@@ -1,0 +1,37 @@
+Cloud File Storage Platform (Drive Clone)
+🧠 Prompt:
+Build a cloud-based file manager that allows users to upload, download, organize, and share files securely. Include role-based access and an admin panel to manage users and usage.
+
+🔑 Core Features:
+User Auth & Role-based Access:
+
+Admin, User, Guest.
+
+File Operations:
+
+Upload, rename, delete, search, download.
+
+File/Folder Tags & Metadata.
+
+Public/Private Shareable Links.
+
+Storage Limit Per User.
+
+Admin Panel:
+
+View usage stats, file logs, user controls.
+
+Audit Logs & Activity History.
+
+🧰 Tech Stack:
+Frontend: React.js + Tailwind
+
+Backend: Node.js + Express.js
+
+DB: MongoDB + GridFS / S3-compatible storage
+
+Auth: JWT
+
+File Handling: Multer, Cloudinary
+
+Admin UI: Chart.js, React Table
