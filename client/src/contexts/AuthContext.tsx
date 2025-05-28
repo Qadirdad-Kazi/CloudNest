@@ -47,89 +47,134 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    // Check if user is authenticated by making a request to the server
+    const checkAuthStatus = async () => {
+      try {
+        const response = await fetch(`${API_URL}/auth/me`, {
+          method: 'GET',
+          credentials: 'include', // This ensures cookies are sent with the request
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error('Error checking authentication status:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuthStatus();
   }, []);
 
   const login = async (email: string, password: string) => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setError(null);
-      setIsLoading(true);
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
+        credentials: 'include', // This ensures cookies are sent with the request
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to login');
       }
 
-      // Update user state and localStorage
-      const userData = {
-        _id: data._id,
-        name: data.name,
-        email: data.email,
-        role: data.role,
-        token: data.token
-      };
+      const data = await response.json();
       
-      setUser(userData);
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      return userData; // Return the user data for the component to use
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      throw err;
+      // Update user state - the cookie is set by the server
+      setUser(data);
+      return data;
+    } catch (error: any) {
+      setError(error.message || 'An error occurred during login');
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
   const register = async (name: string, email: string, password: string) => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setError(null);
       const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
+        credentials: 'include', // This ensures cookies are sent with the request
         body: JSON.stringify({ name, email, password }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Registration failed');
       }
 
+      const data = await response.json();
+      
+      // Update user state - the cookie is set by the server
       setUser(data);
-      localStorage.setItem('user', JSON.stringify(data));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      throw err;
+    } catch (error: any) {
+      setError(error.message || 'An error occurred during registration');
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const logout = async () => {
+    try {
+      // Call the server-side logout endpoint to clear the cookie
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
+      // Clear the user state regardless of server response
+      setUser(null);
+    }
   };
 
-  const updateUser = (userData: Partial<User>) => {
+  const updateUser = async (userData: Partial<User>) => {
     if (user) {
-      const updatedUser = { ...user, ...userData };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      try {
+        // Call the server to update the user data
+        const response = await fetch(`${API_URL}/auth/update-profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(userData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to update user');
+        }
+
+        const updatedUserData = await response.json();
+        setUser({ ...user, ...updatedUserData });
+      } catch (error) {
+        console.error('Error updating user:', error);
+        setError(error instanceof Error ? error.message : 'Failed to update user');
+      }
     }
   };
 

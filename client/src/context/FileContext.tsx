@@ -1,9 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { FileItem, Folder, ShareLink, BreadcrumbItem } from '../types';
-import { mockFiles, mockFolders, mockShareLinks } from '../data/mockData';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from './NotificationContext';
 import { fileService } from '../services/fileService';
+import { folderService } from '../services/folderService';
+import { shareLinkService } from '../services/shareLinkService';
+import axios from '../utils/axios';
+import { API_CONFIG, API_ENDPOINTS } from '../config/api';
 
 interface FileContextType {
   files: FileItem[];
@@ -13,6 +16,7 @@ interface FileContextType {
   breadcrumbs: BreadcrumbItem[];
   selectedItems: (FileItem | Folder)[];
   isLoading: boolean;
+  uploadProgress: number;
   error: string | null;
   storageUsed: number;
   storageLimit: number;
@@ -29,6 +33,10 @@ interface FileContextType {
   searchItems: (query: string) => Promise<(FileItem | Folder)[]>;
   deleteFile: (fileId: string, skipTrash?: boolean) => Promise<void>;
   starFile: (fileId: string) => Promise<void>;
+  moveToTrash: (fileId: string) => Promise<void>;
+  restoreFromTrash: (fileId: string) => Promise<void>;
+  emptyTrash: () => Promise<void>;
+  getTrashFiles: () => Promise<FileItem[]>;
 }
 
 const FileContext = createContext<FileContextType>({
@@ -36,9 +44,10 @@ const FileContext = createContext<FileContextType>({
   folders: [],
   shareLinks: [],
   currentPath: '/',
-  breadcrumbs: [{ name: 'My Drive', path: '/' }],
+  breadcrumbs: [{ name: 'Home', path: '/' }],
   selectedItems: [],
   isLoading: false,
+  uploadProgress: 0,
   error: null,
   storageUsed: 0,
   storageLimit: 1024 * 1024 * 1024, // 1GB
@@ -55,11 +64,15 @@ const FileContext = createContext<FileContextType>({
   searchItems: async () => [],
   deleteFile: async () => {},
   starFile: async () => {},
+  moveToTrash: async () => {},
+  restoreFromTrash: async () => {},
+  emptyTrash: async () => {},
+  getTrashFiles: async () => [],
 });
 
 export const useFiles = () => useContext(FileContext);
 
-export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -68,6 +81,7 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentPath, setCurrentPath] = useState('/');
   const [selectedItems, setSelectedItems] = useState<(FileItem | Folder)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [storageUsed, setStorageUsed] = useState(0);
   const storageLimit = 1024 * 1024 * 1024; // 1GB
@@ -83,7 +97,6 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
         type: 'warning',
         title: 'Storage Almost Full',
         message: 'You are running out of storage space. Consider upgrading your plan or deleting unnecessary files.',
-        // duration property removed as it's not in the Notification type
       });
     }
   }, [files, storageLimit, addNotification]);
@@ -109,71 +122,30 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!user) return;
     
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Filter files and folders based on current path
-      const filteredFiles = mockFiles.filter(file => file.path === currentPath);
-      const filteredFolders = mockFolders.filter(folder => {
-        const folderPathParts = folder.path.split('/').filter(Boolean);
-        const currentPathParts = currentPath.split('/').filter(Boolean);
-        
-        // Check if this folder is directly inside the current path
-        if (currentPathParts.length === 0) {
-          return folderPathParts.length === 1;
-        }
-        
-        if (folderPathParts.length !== currentPathParts.length + 1) {
-          return false;
-        }
-        
-        for (let i = 0; i < currentPathParts.length; i++) {
-          if (folderPathParts[i] !== currentPathParts[i]) {
-            return false;
-          }
-        }
-        
-        return true;
-      });
-      
-      setFiles(filteredFiles);
-      setFolders(filteredFolders);
-      setShareLinks(mockShareLinks);
-    } catch (err) {
-      setError('Failed to load files and folders');
-      console.error(err);
-      addNotification({
-        type: 'error',
-        title: 'Error Loading Files',
-        message: 'Failed to load your files and folders. Please try again.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentPath, user, addNotification]);
+    // Load files when path changes
+    loadFiles();
+  }, [currentPath, user]);
 
   const createFolder = async (name: string) => {
     setIsLoading(true);
     setError(null);
     
     try {
-      // Simulate API request delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const newFolder: Folder = {
-        id: `folder-${Date.now()}`,
+      // Create folder data - only send name and parentPath (not the full path)
+      const folderData = {
         name,
-        path: currentPath === '/' ? `/${name}` : `${currentPath}/${name}`,
-        owner: user?._id || '',
-        shared: false,
-        starred: false,
-        tags: [],
-        createdAt: new Date().toISOString(),
-        modifiedAt: new Date().toISOString(),
+        path: currentPath // This is the parent path where the folder should be created
       };
       
+      // Call API to create folder using folderService
+      const newFolder = await folderService.createFolder(folderData);
+      
+      // Update state with the new folder from server
       setFolders(prev => [...prev, newFolder]);
+      
+      // Reload files and folders to ensure everything is in sync with the server
+      await loadFiles();
+      
       addNotification({
         type: 'success',
         message: `Folder "${name}" created successfully`,
@@ -192,64 +164,36 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const uploadFile = async (file: File) => {
+    setIsLoading(true);
+    setError(null);
+    setUploadProgress(0);
+    
     try {
-      setIsLoading(true);
-      setError(null);
+      // Upload the file using the file service
+      const uploadedFile = await fileService.uploadFile(
+        file,
+        currentPath,
+        (progress) => setUploadProgress(progress)
+      );
       
-      try {
-        // Try to upload via API
-        const uploadedFile = await fileService.uploadFile(file, currentPath);
-        
-        // If successful, add the file to our files array
-        setFiles(prev => {
-          // Ensure prev is always an array
-          const filesArray = Array.isArray(prev) ? prev : [];
-          return [...filesArray, uploadedFile];
-        });
-        
-        addNotification({
-          type: 'success',
-          message: `${file.name} uploaded successfully`,
-        });
-      } catch (apiError) {
-        console.warn('API endpoint not available, using mock data');
-        
-        // Create a mock file item as fallback
-        const mockFile: FileItem = {
-          id: `mock-${Date.now()}-${file.name}`,
-          name: file.name,
-          path: currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`,
-          type: file.name.split('.').pop() || 'unknown',
-          size: file.size,
-          starred: false,
-          shared: false,
-          createdAt: new Date().toISOString(),
-          modifiedAt: new Date().toISOString(),
-          owner: 'current-user',
-          tags: []
-        };
-        
-        // Add the mock file to our files array
-        setFiles(prev => {
-          // Ensure prev is always an array
-          const filesArray = Array.isArray(prev) ? prev : [];
-          return [...filesArray, mockFile];
-        });
-        
-        addNotification({
-          type: 'success',
-          message: `${file.name} uploaded successfully (mock)`,
-        });
-      }
-    } catch (error) {
-      console.error('Error uploading file:', error);
+      // Update state with the new file
+      setFiles(prev => [...prev, uploadedFile]);
+      
+      addNotification({
+        type: 'success',
+        message: `File "${file.name}" uploaded successfully`,
+      });
+    } catch (err) {
       setError('Failed to upload file');
+      console.error(err);
       addNotification({
         type: 'error',
-        message: `Failed to upload ${file.name}`,
+        title: 'Error Uploading File',
+        message: 'Failed to upload the file. Please try again.',
       });
     } finally {
       setIsLoading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -258,19 +202,39 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     
     try {
-      // Simulate API request delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Process files and folders separately
+      const fileIds = items
+        .filter((item): item is FileItem => 'type' in item)
+        .map(file => file.id);
       
-      const fileIds = new Set(items.filter(item => 'type' in item).map(item => item.id));
-      const folderIds = new Set(items.filter(item => !('type' in item)).map(item => item.id));
+      const folderIds = items
+        .filter((item): item is Folder => !('type' in item))
+        .map(folder => folder.id);
       
-      setFiles(prev => prev.filter(file => !fileIds.has(file.id)));
-      setFolders(prev => prev.filter(folder => !folderIds.has(folder.id)));
-      setSelectedItems([]);
-
+      // Delete files
+      if (fileIds.length > 0) {
+        for (const fileId of fileIds) {
+          await fileService.deleteFile(fileId, true); // Skip trash, delete permanently
+        }
+        
+        // Update state
+        setFiles(prev => prev.filter(file => !fileIds.includes(file.id)));
+      }
+      
+      // Delete folders
+      if (folderIds.length > 0) {
+        for (const folderId of folderIds) {
+          // Call API to delete folder
+          await axios.delete(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FOLDERS.DELETE}/${folderId}`);
+        }
+        
+        // Update state
+        setFolders(prev => prev.filter(folder => !folderIds.includes(folder.id)));
+      }
+      
       addNotification({
         type: 'success',
-        message: `${items.length} item${items.length === 1 ? '' : 's'} moved to trash`,
+        message: `${items.length} item(s) deleted successfully`,
       });
     } catch (err) {
       setError('Failed to delete items');
@@ -278,7 +242,7 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addNotification({
         type: 'error',
         title: 'Error Deleting Items',
-        message: 'Failed to move items to trash. Please try again.',
+        message: 'Failed to delete the selected items. Please try again.',
       });
     } finally {
       setIsLoading(false);
@@ -290,26 +254,37 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     
     try {
-      // Simulate API request delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      if ('type' in item) { // It's a file
+      if ('type' in item) {
+        // It's a file
+        // Call API to rename file
+        const response = await axios.patch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.LIST}/${item.id}/rename`, {
+          newName,
+        });
+        
+        const updatedFile = response.data;
+        
+        // Update state
         setFiles(prev => prev.map(file => 
-          file.id === item.id 
-            ? { ...file, name: newName, modifiedAt: new Date().toISOString() } 
-            : file
+          file.id === item.id ? updatedFile : file
         ));
-      } else { // It's a folder
+      } else {
+        // It's a folder
+        // Call API to rename folder
+        const response = await axios.patch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FOLDERS.CREATE}/${item.id}/rename`, {
+          newName,
+        });
+        
+        const updatedFolder = response.data;
+        
+        // Update state
         setFolders(prev => prev.map(folder => 
-          folder.id === item.id 
-            ? { ...folder, name: newName, modifiedAt: new Date().toISOString() } 
-            : folder
+          folder.id === item.id ? updatedFolder : folder
         ));
       }
-
+      
       addNotification({
         type: 'success',
-        message: `Renamed to "${newName}" successfully`,
+        message: `Item renamed to "${newName}" successfully`,
       });
     } catch (err) {
       setError('Failed to rename item');
@@ -326,9 +301,14 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const toggleSelect = (item: FileItem | Folder) => {
     setSelectedItems(prev => {
-      const isSelected = prev.some(selected => selected.id === item.id);
+      const isSelected = prev.some(selectedItem => 
+        'id' in selectedItem && 'id' in item && selectedItem.id === item.id
+      );
+      
       if (isSelected) {
-        return prev.filter(selected => selected.id !== item.id);
+        return prev.filter(selectedItem => 
+          !('id' in selectedItem && 'id' in item && selectedItem.id === item.id)
+        );
       } else {
         return [...prev, item];
       }
@@ -340,31 +320,38 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const selectAll = () => {
-    setSelectedItems([...files, ...folders]);
+    const allItems = [...files, ...folders];
+    setSelectedItems(allItems);
   };
 
   const starItem = async (item: FileItem | Folder) => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      // Simulate API request delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      if ('type' in item) { // It's a file
+      if ('type' in item) {
+        // It's a file
+        await fileService.starFile(item.id);
+        
+        // Update state
         setFiles(prev => prev.map(file => 
-          file.id === item.id 
-            ? { ...file, starred: !file.starred } 
-            : file
+          file.id === item.id ? { ...file, starred: !file.starred } : file
         ));
-      } else { // It's a folder
+      } else {
+        // It's a folder
+        // Call API to star folder
+        const response = await axios.patch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FOLDERS.CREATE}/${item.id}/star`);
+        const updatedFolder = response.data;
+        
+        // Update state
         setFolders(prev => prev.map(folder => 
-          folder.id === item.id 
-            ? { ...folder, starred: !folder.starred } 
-            : folder
+          folder.id === item.id ? updatedFolder : folder
         ));
       }
-
+      
       addNotification({
         type: 'success',
-        message: `${item.starred ? 'Removed from' : 'Added to'} starred items`,
+        message: `Item ${item.starred ? 'removed from' : 'added to'} starred items`,
       });
     } catch (err) {
       setError('Failed to star item');
@@ -374,6 +361,8 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: 'Error Starring Item',
         message: 'Failed to update starred status. Please try again.',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -387,18 +376,14 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     
     try {
-      // Simulate API request delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const newShareLink: ShareLink = {
-        id: `share-${Date.now()}`,
-        fileId: item.id,
-        url: `https://cloudrive.com/s/${Math.random().toString(36).substring(2, 10)}`,
-        isPublic,
+      // Call API to create share link using shareLinkService
+      const shareData = {
+        fileId: item.id, // API expects fileId property
         password,
-        expiresAt: expiry?.toISOString(),
-        createdAt: new Date().toISOString(),
+        expiresAt: expiry,
       };
+      
+      const newShareLink = await shareLinkService.createShareLink(shareData);
       
       setShareLinks(prev => [...prev, newShareLink]);
       
@@ -443,22 +428,12 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     
     try {
-      // Simulate API request delay
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Call API to search items
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/search`, {
+        params: { query }
+      });
       
-      const lowercaseQuery = query.toLowerCase();
-      
-      const matchingFiles = mockFiles.filter(file => 
-        file.name.toLowerCase().includes(lowercaseQuery) || 
-        file.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery))
-      );
-      
-      const matchingFolders = mockFolders.filter(folder => 
-        folder.name.toLowerCase().includes(lowercaseQuery) || 
-        folder.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery))
-      );
-      
-      return [...matchingFiles, ...matchingFolders];
+      return response.data;
     } catch (err) {
       setError('Failed to search items');
       console.error(err);
@@ -477,15 +452,46 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       setError(null);
-      const files = await fileService.getFiles(currentPath);
-      setFiles(files);
+      
+      // Get files for the current path from the server
+      try {
+        const filesResponse = await fileService.getFiles(currentPath);
+        setFiles(Array.isArray(filesResponse) ? filesResponse : []);
+        
+        // Calculate total storage used from the files we have
+        const totalSize = filesResponse.reduce((total, file) => total + file.size, 0);
+        setStorageUsed(totalSize);
+      } catch (fileError) {
+        console.error('Error loading files from server:', fileError);
+        setFiles([]);
+      }
+      
+      // Get folders for the current path from the server
+      try {
+        // Call API to get folders using folderService
+        const foldersResponse = await folderService.getFolders(currentPath);
+        setFolders(Array.isArray(foldersResponse) ? foldersResponse : []);
+      } catch (folderError) {
+        console.error('Error loading folders from server:', folderError);
+        setFolders([]);
+      }
+      
+      // Get share links from the server
+      try {
+        // Call API to get share links using shareLinkService
+        const shareLinksResponse = await shareLinkService.getShareLinks();
+        setShareLinks(Array.isArray(shareLinksResponse) ? shareLinksResponse : []);
+      } catch (shareError) {
+        console.error('Error loading share links from server:', shareError);
+        setShareLinks([]);
+      }
     } catch (error) {
-      console.error('Error loading files:', error);
-      setError('Failed to load files');
-      addNotification({
-        type: 'error',
-        message: 'Failed to load files',
-      });
+      console.error('Error loading files and folders:', error);
+      setError('Failed to load your files and folders. Please try again.');
+      // Set empty arrays as fallback
+      setFiles([]);
+      setFolders([]);
+      setShareLinks([]);
     } finally {
       setIsLoading(false);
     }
@@ -519,6 +525,10 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(null);
       await fileService.starFile(fileId);
       await loadFiles(); // Reload files after starring
+      addNotification({
+        type: 'success',
+        message: 'File starred successfully',
+      });
     } catch (error) {
       console.error('Error starring file:', error);
       setError('Failed to star file');
@@ -526,6 +536,123 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
         type: 'error',
         message: 'Failed to star file',
       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Move a file to trash
+  const moveToTrash = async (fileId: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      await fileService.moveToTrash(fileId);
+      
+      // Update local state
+      setFiles(prev => prev.map(file => 
+        file.id === fileId 
+          ? { ...file, inTrash: true } 
+          : file
+      ));
+      
+      addNotification({
+        type: 'success',
+        message: 'File moved to trash',
+      });
+    } catch (error) {
+      console.error('Error moving file to trash:', error);
+      setError('Failed to move file to trash');
+      addNotification({
+        type: 'error',
+        message: 'Failed to move file to trash',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Restore a file from trash
+  const restoreFromTrash = async (fileId: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      await fileService.restoreFromTrash(fileId);
+      
+      // Update local state
+      setFiles(prev => prev.map(file => 
+        file.id === fileId 
+          ? { ...file, inTrash: false } 
+          : file
+      ));
+      
+      addNotification({
+        type: 'success',
+        message: 'File restored from trash',
+      });
+    } catch (error) {
+      console.error('Error restoring file from trash:', error);
+      setError('Failed to restore file from trash');
+      addNotification({
+        type: 'error',
+        message: 'Failed to restore file from trash',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Empty trash (permanently delete all files in trash)
+  const emptyTrash = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Get all files in trash first
+      const trashFiles = await getTrashFiles();
+      
+      // Confirm with the user if there are many files
+      if (trashFiles.length > 10) {
+        // In a real app, you would show a confirmation dialog here
+        console.log(`Warning: About to permanently delete ${trashFiles.length} files`);
+      }
+      
+      // Empty the trash
+      await fileService.emptyTrash();
+      
+      // Update local state
+      setFiles(prev => prev.filter(file => !file.inTrash));
+      
+      addNotification({
+        type: 'success',
+        message: `${trashFiles.length} file(s) permanently deleted`,
+      });
+    } catch (error) {
+      console.error('Error emptying trash:', error);
+      setError('Failed to empty trash');
+      addNotification({
+        type: 'error',
+        message: 'Failed to empty trash',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Get all files in trash
+  const getTrashFiles = async (): Promise<FileItem[]> => {
+    try {
+      setIsLoading(true);
+      // Get trash files from the server
+      const trashFiles = await fileService.getTrashFiles();
+      return trashFiles;
+    } catch (error) {
+      console.error('Error getting trash files:', error);
+      setError('Failed to get trash files');
+      addNotification({
+        type: 'error',
+        message: 'Failed to load trash files',
+      });
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -541,6 +668,7 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
         breadcrumbs,
         selectedItems,
         isLoading,
+        uploadProgress,
         error,
         storageUsed,
         storageLimit,
@@ -557,6 +685,10 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
         searchItems,
         deleteFile,
         starFile,
+        moveToTrash,
+        restoreFromTrash,
+        emptyTrash,
+        getTrashFiles,
       }}
     >
       {children}

@@ -18,10 +18,13 @@ export interface FileItem {
   path: string;
   shared: boolean;
   starred: boolean;
+  inTrash?: boolean; // Whether the file is in trash
   tags: string[];
   createdAt: string;
   modifiedAt: string;
   thumbnail?: string;
+  cloudinaryUrl?: string; // URL for images stored in Cloudinary
+  mongodbId?: string; // ID for documents stored in MongoDB
 }
 
 export interface Folder {
@@ -31,6 +34,7 @@ export interface Folder {
   owner: string;
   shared: boolean;
   starred: boolean;
+  inTrash?: boolean; // Whether the folder is in trash
   tags: string[];
   createdAt: string;
   modifiedAt: string;

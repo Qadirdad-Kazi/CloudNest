@@ -10,9 +10,11 @@ import {
   Share2,
   Download,
   Trash2,
-  Edit
+  Edit,
+  Lock
 } from 'lucide-react';
 import { FileItem } from '../../types';
+import { mongodbService } from '../../services/mongodbService';
 
 interface FileCardProps {
   file: FileItem;
@@ -43,8 +45,32 @@ const FileCard: React.FC<FileCardProps> = ({
 }) => {
   const [showMenu, setShowMenu] = React.useState(false);
   
-  // Get the file icon based on type
+  // Get the file icon or thumbnail based on type
   const getFileIcon = () => {
+    // If it's an image with a Cloudinary URL, show the actual image thumbnail
+    if (file.cloudinaryUrl && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(file.type.toLowerCase())) {
+      return (
+        <div className="relative w-10 h-10 overflow-hidden rounded-md">
+          <img 
+            src={file.cloudinaryUrl} 
+            alt={file.name} 
+            className="object-cover w-full h-full" 
+          />
+        </div>
+      );
+    }
+    
+    // If it's a document stored in MongoDB, show a document icon with a lock symbol
+    if (file.mongodbId && ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(file.type.toLowerCase())) {
+      return (
+        <div className="relative">
+          <FileText className="w-8 h-8 text-red-500" />
+          <Lock className="absolute -bottom-1 -right-1 w-4 h-4 text-blue-600 bg-white rounded-full" />
+        </div>
+      );
+    }
+    
+    // Otherwise use the default icon system
     switch (file.type.toLowerCase()) {
       case 'pdf':
         return <FileText className="w-8 h-8 text-red-500" />;
@@ -52,6 +78,7 @@ const FileCard: React.FC<FileCardProps> = ({
       case 'jpeg':
       case 'png':
       case 'gif':
+      case 'webp':
         return <Image className="w-8 h-8 text-green-500" />;
       case 'xlsx':
       case 'csv':
@@ -76,13 +103,62 @@ const FileCard: React.FC<FileCardProps> = ({
   };
 
   // Format date
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
-    }).format(date);
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return 'Unknown date';
+    
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'Unknown date';
+      }
+      
+      return new Intl.DateTimeFormat('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      }).format(date);
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Unknown date';
+    }
+  };
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    try {
+      // If it's a MongoDB document, fetch it from MongoDB
+      if (file.mongodbId) {
+        const documentBlob = await mongodbService.getDocument(file.mongodbId);
+        const url = URL.createObjectURL(documentBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+      // If it's a Cloudinary image, download it from Cloudinary
+      else if (file.cloudinaryUrl) {
+        const a = document.createElement('a');
+        a.href = file.cloudinaryUrl;
+        a.download = file.name;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      // Otherwise use the default download handler
+      else {
+        onDownload(file);
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      // Fallback to the default download handler
+      onDownload(file);
+    }
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -147,7 +223,7 @@ const FileCard: React.FC<FileCardProps> = ({
                     <button onClick={() => { setShowMenu(false); onShare(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
                       <Share2 className="w-4 h-4" />
                     </button>
-                    <button onClick={() => { setShowMenu(false); onDownload(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                    <button onClick={(e) => { setShowMenu(false); handleDownload(e); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
                       <Download className="w-4 h-4" />
                     </button>
                     <button onClick={() => { setShowMenu(false); onDelete(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-red-500">

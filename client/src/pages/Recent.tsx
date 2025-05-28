@@ -4,14 +4,15 @@ import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import FileCard from '../components/file/FileCard';
 import { useFiles } from '../context/FileContext';
+import { useTheme } from '../context/ThemeContext';
 import { FileItem } from '../types';
-// import { fileService } from '../services/fileService';
+import { fileService } from '../services/fileService';
 
 const Recent: React.FC = () => {
   const { deleteFile, starFile } = useFiles();
+  const { darkMode, toggleDarkMode } = useTheme();
   const [recentFiles, setRecentFiles] = useState<FileItem[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [darkMode, setDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,40 +24,30 @@ const Recent: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      // Use mock data for now since the API might not be fully implemented
-      // const files = await fileService.getRecentFiles();
-      const files: FileItem[] = [
-        {
-          id: '1',
-          name: 'Document.pdf',
-          type: 'pdf',
-          size: 1024 * 1024 * 2.5, // 2.5MB
-          path: '/Document.pdf',
-          owner: 'user123',
-          shared: false,
-          starred: true,
-          tags: ['work', 'important'],
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          modifiedAt: new Date(Date.now() - 3600000).toISOString()
-        },
-        {
-          id: '2',
-          name: 'Image.jpg',
-          type: 'jpg',
-          size: 1024 * 512, // 512KB
-          path: '/Image.jpg',
-          owner: 'user123',
-          shared: true,
-          starred: false,
-          tags: ['personal'],
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
-          modifiedAt: new Date(Date.now() - 7200000).toISOString()
+      
+      try {
+        // Fetch recent files from the service (last 7 days)
+        const files = await fileService.getRecentFiles(7);
+        setRecentFiles(files);
+      } catch (apiError: any) {
+        // If it's a 404, it just means no files were found - that's okay
+        if (apiError?.response?.status === 404) {
+          console.log('No recent files found on server');
+          setRecentFiles([]);
+        } else {
+          // For other errors, show error message
+          throw apiError; // Re-throw to be caught by outer catch
         }
-      ];
-      setRecentFiles(files);
+      }
     } catch (error) {
       console.error('Error loading recent files:', error);
-      setError('Failed to load recent files');
+      // Don't set error message for 404 - it's not really an error
+      if ((error as any)?.response?.status !== 404) {
+        setError('Failed to load recent files');
+      }
+      
+      // Set empty array for recent files when there's an error
+      setRecentFiles([]);
     } finally {
       setIsLoading(false);
     }
@@ -144,7 +135,7 @@ const Recent: React.FC = () => {
         <Header 
           onSearch={handleSearch} 
           darkMode={darkMode} 
-          toggleDarkMode={() => setDarkMode(!darkMode)} 
+          toggleDarkMode={toggleDarkMode} 
         />
         
         <main className="flex-1 overflow-y-auto p-4">
@@ -177,8 +168,23 @@ const Recent: React.FC = () => {
               <span className="block sm:inline"> {error}</span>
             </div>
           ) : recentFiles.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">No recent files</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
+              <div className="col-span-full text-center py-20 text-gray-500 dark:text-gray-400">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium">No recent files yet</h3>
+                <p className="mt-1 text-sm">Upload a file to see it here.</p>
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={() => window.location.href = '/dashboard'}
+                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    Go to Dashboard
+                  </button>
+                </div>
+              </div>
             </div>
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const fileSchema = new mongoose.Schema({
   userId: {
@@ -72,4 +72,4 @@ fileSchema.methods.updateLastAccessed = function() {
   return this.save();
 };
 
-module.exports = mongoose.model('File', fileSchema); 
+export default mongoose.model('File', fileSchema);

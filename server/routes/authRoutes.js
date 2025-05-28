@@ -29,14 +29,21 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Return user data and token
+    // Set token as HTTP-only cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    // Return user data without the token (token is in the cookie)
     res.json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      settings: user.settings,
-      token
+      settings: user.settings
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -71,17 +78,139 @@ router.post('/register', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Return user data and token
+    // Set token as HTTP-only cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    // Return user data without the token (token is in the cookie)
     res.status(201).json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      settings: user.settings,
-      token
+      settings: user.settings
     });
   } catch (error) {
     console.error('Register error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Logout route
+router.post('/logout', (req, res) => {
+  try {
+    // Clear the auth cookie
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
+    
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Debug route to check cookies and environment variables
+router.get('/debug', (req, res) => {
+  res.json({
+    cookies: req.cookies,
+    hasJwtSecret: !!process.env.JWT_SECRET,
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Get current user route (requires authentication)
+router.get('/me', async (req, res) => {
+  try {
+    // Get token from cookie
+    const token = req.cookies.token;
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+    
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_for_development');
+    
+    // Get user data
+    const user = await User.findById(decoded.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      settings: user.settings
+    });
+  } catch (error) {
+    console.error('Get current user error:', error);
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update profile route (requires authentication)
+router.put('/update-profile', async (req, res) => {
+  try {
+    // Get token from cookie
+    const token = req.cookies.token;
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+    
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Get user data
+    const user = await User.findById(decoded.userId);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Update allowed fields
+    const allowedUpdates = ['name', 'email', 'settings'];
+    const updates = req.body;
+    
+    Object.keys(updates).forEach(update => {
+      if (allowedUpdates.includes(update)) {
+        if (update === 'settings' && user.settings) {
+          // Merge settings objects instead of replacing
+          user.settings = { ...user.settings, ...updates.settings };
+        } else {
+          user[update] = updates[update];
+        }
+      }
+    });
+    
+    await user.save();
+    
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      settings: user.settings
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
     res.status(500).json({ message: 'Server error' });
   }
 });

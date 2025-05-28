@@ -1,37 +1,24 @@
 import axios from 'axios';
+import { API_CONFIG } from '../config/api';
 
 const instance = axios.create({
-  baseURL: 'http://localhost:5001/api',
+  baseURL: API_CONFIG.BASE_URL,
   headers: {
     'Content-Type': 'application/json'
   },
-  withCredentials: true // Enable sending cookies in cross-origin requests
+  timeout: API_CONFIG.TIMEOUT,
+  withCredentials: true // This ensures cookies are sent with every request
 });
 
-// Add a request interceptor
-instance.interceptors.request.use(
-  (config) => {
-    const user = localStorage.getItem('user');
-    if (user) {
-      const { token } = JSON.parse(user);
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+// No need for request interceptor to add token as we're using HTTP-only cookies
+// The browser will automatically include the cookie with each request
 
 // Add a response interceptor
 instance.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Clear user data on authentication error
-      localStorage.removeItem('user');
+      // Redirect to login on authentication error
       window.location.href = '/login';
     }
     return Promise.reject(error);

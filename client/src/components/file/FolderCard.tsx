@@ -33,13 +33,25 @@ const FolderCard: React.FC<FolderCardProps> = ({
   const [showMenu, setShowMenu] = React.useState(false);
   
   // Format date
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
-    }).format(date);
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return 'Unknown date';
+    
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'Unknown date';
+      }
+      
+      return new Intl.DateTimeFormat('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      }).format(date);
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Unknown date';
+    }
   };
 
   const handleClick = (e: React.MouseEvent) => {

@@ -1,8 +1,8 @@
-const Notification = require('../models/Notification');
-const { validateObjectId } = require('../utils/validation');
+import Notification from '../models/Notification.js';
+import { validateObjectId } from '../utils/validation.js';
 
 // Create a new notification
-exports.createNotification = async (req, res) => {
+const createNotification = async (req, res) => {
   try {
     const { type, title, message, relatedItemId, relatedItemType } = req.body;
     const userId = req.user._id;
@@ -26,7 +26,7 @@ exports.createNotification = async (req, res) => {
 };
 
 // Get all notifications for a user
-exports.getUserNotifications = async (req, res) => {
+const getUserNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
     const { page = 1, limit = 20, unreadOnly = false } = req.query;
@@ -56,7 +56,7 @@ exports.getUserNotifications = async (req, res) => {
 };
 
 // Mark notification as read
-exports.markAsRead = async (req, res) => {
+const markAsRead = async (req, res) => {
   try {
     const { notificationId } = req.params;
     const userId = req.user._id;
@@ -83,7 +83,7 @@ exports.markAsRead = async (req, res) => {
 };
 
 // Mark all notifications as read
-exports.markAllAsRead = async (req, res) => {
+const markAllAsRead = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -100,7 +100,7 @@ exports.markAllAsRead = async (req, res) => {
 };
 
 // Delete a notification
-exports.deleteNotification = async (req, res) => {
+const deleteNotification = async (req, res) => {
   try {
     const { notificationId } = req.params;
     const userId = req.user._id;
@@ -126,7 +126,7 @@ exports.deleteNotification = async (req, res) => {
 };
 
 // Delete all read notifications
-exports.deleteAllRead = async (req, res) => {
+const deleteAllRead = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -143,7 +143,7 @@ exports.deleteAllRead = async (req, res) => {
 };
 
 // Get unread notification count
-exports.getUnreadCount = async (req, res) => {
+const getUnreadCount = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -157,4 +157,14 @@ exports.getUnreadCount = async (req, res) => {
     console.error('Error getting unread count:', error);
     res.status(500).json({ message: 'Failed to get unread count' });
   }
-}; 
+};
+
+export {
+  createNotification,
+  getUserNotifications,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
+  deleteAllRead,
+  getUnreadCount
+};

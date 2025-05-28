@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuth } from './contexts/AuthContext';
 import { FileProvider } from './context/FileContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { ThemeProvider } from './context/ThemeContext';
 import NotificationContainer from './components/notifications/NotificationContainer';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -55,11 +56,12 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => {
   return (
     <Router>
-      <NotificationProvider>
-        <FileProvider>
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-            <NotificationContainer />
-            <Routes>
+      <ThemeProvider>
+        <NotificationProvider>
+          <FileProvider>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+              <NotificationContainer />
+              <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -80,9 +82,10 @@ const App: React.FC = () => {
               {/* Catch all route */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
-          </div>
-        </FileProvider>
-      </NotificationProvider>
+            </div>
+          </FileProvider>
+        </NotificationProvider>
+      </ThemeProvider>
     </Router>
   );
 }

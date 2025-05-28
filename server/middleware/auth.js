@@ -3,11 +3,11 @@ import User from '../models/User.js';
 
 export const authenticate = async (req, res, next) => {
   try {
-    // Get token from header
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    // Get token from cookie
+    const token = req.cookies.token;
     
     if (!token) {
-      return res.status(401).json({ message: 'No authentication token, access denied' });
+      return res.status(401).json({ message: 'Not authenticated, please login' });
     }
 
     // Verify token
@@ -29,7 +29,15 @@ export const authenticate = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
-    res.status(401).json({ message: 'Token is invalid or expired' });
+    // Clear invalid cookie
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      res.clearCookie('token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+      });
+    }
+    res.status(401).json({ message: 'Authentication failed, please login again' });
   }
 };
 
