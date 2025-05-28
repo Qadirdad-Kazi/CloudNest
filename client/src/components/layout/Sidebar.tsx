@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Dispatch, SetStateAction } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   HardDrive, 
@@ -12,17 +12,17 @@ import {
   BarChart,
   Settings
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface SidebarItemProps {
   icon: React.ReactNode;
   label: string;
-  path: string;
+  path?: string; // Made optional since it's not being used
   active?: boolean;
   onClick?: () => void;
 }
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, path, active, onClick }) => {
+const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick }) => {
   return (
     <div 
       className={`flex items-center p-3 rounded-lg cursor-pointer transition-colors ${
@@ -38,7 +38,12 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, path, active, on
   );
 };
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  activeItem: string;
+  onItemClick: Dispatch<SetStateAction<string>>;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -85,36 +90,51 @@ const Sidebar: React.FC = () => {
           icon={<HardDrive className="w-5 h-5" />} 
           label="My Drive" 
           path="/dashboard"
-          active={location.pathname === '/dashboard'}
-          onClick={() => navigate('/dashboard')}
+          active={activeItem === 'dashboard' || location.pathname === '/dashboard'}
+          onClick={() => {
+            navigate('/dashboard');
+            onItemClick('dashboard');
+          }}
         />
         <SidebarItem 
           icon={<Star className="w-5 h-5" />} 
           label="Starred" 
           path="/starred"
-          active={location.pathname === '/starred'}
-          onClick={() => navigate('/starred')}
+          active={activeItem === 'starred' || location.pathname === '/starred'}
+          onClick={() => {
+            navigate('/starred');
+            onItemClick('starred');
+          }}
         />
         <SidebarItem 
           icon={<Share2 className="w-5 h-5" />} 
           label="Shared" 
           path="/shared"
-          active={location.pathname === '/shared'}
-          onClick={() => navigate('/shared')}
+          active={activeItem === 'shared' || location.pathname === '/shared'}
+          onClick={() => {
+            navigate('/shared');
+            onItemClick('shared');
+          }}
         />
         <SidebarItem 
           icon={<Clock className="w-5 h-5" />} 
           label="Recent" 
           path="/recent"
-          active={location.pathname === '/recent'}
-          onClick={() => navigate('/recent')}
+          active={activeItem === 'recent' || location.pathname === '/recent'}
+          onClick={() => {
+            navigate('/recent');
+            onItemClick('recent');
+          }}
         />
         <SidebarItem 
           icon={<Trash2 className="w-5 h-5" />} 
           label="Trash" 
           path="/trash"
-          active={location.pathname === '/trash'}
-          onClick={() => navigate('/trash')}
+          active={activeItem === 'trash' || location.pathname === '/trash'}
+          onClick={() => {
+            navigate('/trash');
+            onItemClick('trash');
+          }}
         />
         
         {isAdmin && (

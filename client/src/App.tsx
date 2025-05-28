@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { useAuth } from './contexts/AuthContext';
 import { FileProvider } from './context/FileContext';
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationContainer from './components/notifications/NotificationContainer';
@@ -55,36 +55,34 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => {
   return (
     <Router>
-    <AuthProvider>
-        <NotificationProvider>
-      <FileProvider>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-              <NotificationContainer />
-              <Routes>
-                {/* Public routes */}
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                
-                {/* Protected routes */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route path="/starred" element={<ProtectedRoute><Starred /></ProtectedRoute>} />
-                <Route path="/shared" element={<ProtectedRoute><Shared /></ProtectedRoute>} />
-                <Route path="/recent" element={<ProtectedRoute><Recent /></ProtectedRoute>} />
-                <Route path="/trash" element={<ProtectedRoute><Trash /></ProtectedRoute>} />
-                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-                
-                {/* Admin routes */}
-                <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-                
-                {/* Catch all route */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
-            </div>
-      </FileProvider>
-        </NotificationProvider>
-    </AuthProvider>
+      <NotificationProvider>
+        <FileProvider>
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            <NotificationContainer />
+            <Routes>
+              {/* Public routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              
+              {/* Protected routes */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/starred" element={<ProtectedRoute><Starred /></ProtectedRoute>} />
+              <Route path="/shared" element={<ProtectedRoute><Shared /></ProtectedRoute>} />
+              <Route path="/recent" element={<ProtectedRoute><Recent /></ProtectedRoute>} />
+              <Route path="/trash" element={<ProtectedRoute><Trash /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              
+              {/* Admin routes */}
+              <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              
+              {/* Catch all route */}
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </div>
+        </FileProvider>
+      </NotificationProvider>
     </Router>
   );
 }

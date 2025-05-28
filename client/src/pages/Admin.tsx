@@ -3,7 +3,7 @@ import { BarChart3, Users, Activity, Settings } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import UsersTable from '../components/admin/UsersTable';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { mockUsers, mockActivityLogs } from '../data/mockData';
 import { User } from '../types';
 

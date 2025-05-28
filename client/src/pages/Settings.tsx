@@ -2,12 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { Bell, Shield, Moon, Sun, Globe, Key, Trash2, Save, RotateCcw } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/axios';
 
 const Settings: React.FC = () => {
   const { user, updateUser, logout } = useAuth();
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    // Initialize dark mode from localStorage or system preference
+    const savedDarkMode = localStorage.getItem('darkMode');
+    return savedDarkMode ? JSON.parse(savedDarkMode) : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+  
+  // Apply dark mode class to HTML element
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -65,13 +79,35 @@ const Settings: React.FC = () => {
   }, []);
 
   const handleToggle = (category: string, setting: string) => {
-    setSettings(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category as keyof typeof prev],
-        [setting]: !prev[category as keyof typeof prev][setting as keyof typeof prev[keyof typeof prev]]
+    setSettings(prev => {
+      // Create a safe copy to avoid TypeScript errors
+      const newSettings = { ...prev };
+      
+      // Safely update the nested property
+      if (category === 'notifications') {
+        newSettings.notifications = {
+          ...newSettings.notifications,
+          [setting]: !newSettings.notifications[setting as keyof typeof newSettings.notifications]
+        };
+      } else if (category === 'privacy') {
+        newSettings.privacy = {
+          ...newSettings.privacy,
+          [setting]: !newSettings.privacy[setting as keyof typeof newSettings.privacy]
+        };
+      } else if (category === 'security') {
+        newSettings.security = {
+          ...newSettings.security,
+          [setting]: !newSettings.security[setting as keyof typeof newSettings.security]
+        };
+      } else if (category === 'appearance') {
+        newSettings.appearance = {
+          ...newSettings.appearance,
+          [setting]: !newSettings.appearance[setting as keyof typeof newSettings.appearance]
+        };
       }
-    }));
+      
+      return newSettings;
+    });
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -112,7 +148,9 @@ const Settings: React.FC = () => {
         appearance: settings.appearance,
         language: settings.language
       });
-      updateUser({ ...user, settings: response.data });
+      if (user) {
+        updateUser({ ...user, settings: response.data });
+      }
       setSuccess('Settings saved successfully');
     } catch (err) {
       setError('Failed to save settings');
@@ -160,15 +198,22 @@ const Settings: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-      <Sidebar activeItem="settings" />
+      <Sidebar activeItem="settings" onItemClick={() => {}} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           onSearch={() => {}} 
           darkMode={darkMode}
           toggleDarkMode={() => {
-            setDarkMode(!darkMode);
-            handleToggle('appearance', 'darkMode');
+            const newDarkMode = !darkMode;
+            setDarkMode(newDarkMode);
+            setSettings(prev => ({
+              ...prev,
+              appearance: {
+                ...prev.appearance,
+                darkMode: newDarkMode
+              }
+            }));
           }}
         />
         

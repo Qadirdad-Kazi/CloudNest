@@ -1,18 +1,38 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-interface User {
+export interface User {
   _id: string;
   name: string;
   email: string;
   role: string;
   token: string;
+  settings?: {
+    notifications?: {
+      email?: boolean;
+      push?: boolean;
+      updates?: boolean;
+    };
+    privacy?: {
+      publicProfile?: boolean;
+      showActivity?: boolean;
+      shareStats?: boolean;
+    };
+    security?: {
+      twoFactor?: boolean;
+    };
+    appearance?: {
+      darkMode?: boolean;
+    };
+    language?: string;
+  };
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (userData: Partial<User>) => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -105,8 +125,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('user');
   };
 
+  const updateUser = (userData: Partial<User>) => {
+    if (user) {
+      const updatedUser = { ...user, ...userData };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isLoading, error }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateUser, isLoading, error }}>
       {children}
     </AuthContext.Provider>
   );

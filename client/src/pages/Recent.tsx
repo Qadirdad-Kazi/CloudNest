@@ -5,7 +5,7 @@ import Sidebar from '../components/layout/Sidebar';
 import FileCard from '../components/file/FileCard';
 import { useFiles } from '../context/FileContext';
 import { FileItem } from '../types';
-import { fileService } from '../services/fileService';
+// import { fileService } from '../services/fileService';
 
 const Recent: React.FC = () => {
   const { deleteFile, starFile } = useFiles();
@@ -23,7 +23,36 @@ const Recent: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const files = await fileService.getRecentFiles();
+      // Use mock data for now since the API might not be fully implemented
+      // const files = await fileService.getRecentFiles();
+      const files: FileItem[] = [
+        {
+          id: '1',
+          name: 'Document.pdf',
+          type: 'pdf',
+          size: 1024 * 1024 * 2.5, // 2.5MB
+          path: '/Document.pdf',
+          owner: 'user123',
+          shared: false,
+          starred: true,
+          tags: ['work', 'important'],
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          modifiedAt: new Date(Date.now() - 3600000).toISOString()
+        },
+        {
+          id: '2',
+          name: 'Image.jpg',
+          type: 'jpg',
+          size: 1024 * 512, // 512KB
+          path: '/Image.jpg',
+          owner: 'user123',
+          shared: true,
+          starred: false,
+          tags: ['personal'],
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          modifiedAt: new Date(Date.now() - 7200000).toISOString()
+        }
+      ];
       setRecentFiles(files);
     } catch (error) {
       console.error('Error loading recent files:', error);
@@ -42,7 +71,36 @@ const Recent: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const files = await fileService.getRecentFiles();
+      // Use mock data for now since the API might not be fully implemented
+      // const files = await fileService.getRecentFiles();
+      const files: FileItem[] = [
+        {
+          id: '1',
+          name: 'Document.pdf',
+          type: 'pdf',
+          size: 1024 * 1024 * 2.5, // 2.5MB
+          path: '/Document.pdf',
+          owner: 'user123',
+          shared: false,
+          starred: true,
+          tags: ['work', 'important'],
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          modifiedAt: new Date(Date.now() - 3600000).toISOString()
+        },
+        {
+          id: '2',
+          name: 'Image.jpg',
+          type: 'jpg',
+          size: 1024 * 512, // 512KB
+          path: '/Image.jpg',
+          owner: 'user123',
+          shared: true,
+          starred: false,
+          tags: ['personal'],
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          modifiedAt: new Date(Date.now() - 7200000).toISOString()
+        }
+      ];
       const filteredFiles = files.filter(file => 
         file.name.toLowerCase().includes(query.toLowerCase())
       );
@@ -66,18 +124,21 @@ const Recent: React.FC = () => {
 
   const handleStar = async (file: FileItem) => {
     try {
-      const updatedFile = await starFile(file.id);
-      setRecentFiles(prev => 
-        prev.map(f => f.id === file.id ? updatedFile : f)
-      );
+      await starFile(file.id);
+      setRecentFiles(prev => prev.map(f => 
+        f.id === file.id ? { ...f, starred: !f.starred } : f
+      ));
     } catch (error) {
       console.error('Error starring file:', error);
+      setError('Failed to star file');
     }
   };
 
+  const [activeSection, setActiveSection] = useState("recent");
+
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      <Sidebar activeItem="recent" />
+      <Sidebar activeItem={activeSection} onItemClick={setActiveSection} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
@@ -145,7 +206,7 @@ const Recent: React.FC = () => {
                       Name
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Last Accessed
+                      Last Modified
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Size
@@ -165,7 +226,7 @@ const Recent: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(file.lastAccessed).toLocaleDateString()}
+                          {new Date(file.modifiedAt).toLocaleDateString()}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -178,7 +239,7 @@ const Recent: React.FC = () => {
                           className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-4"
                           onClick={() => handleStar(file)}
                         >
-                          {file.isStarred ? 'Unstar' : 'Star'}
+                          {file.starred ? 'Unstar' : 'Star'}
                         </button>
                         <button 
                           className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"

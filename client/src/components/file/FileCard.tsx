@@ -24,6 +24,8 @@ interface FileCardProps {
   onDelete: (file: FileItem) => void;
   onDownload: (file: FileItem) => void;
   onClick: (file: FileItem) => void;
+  onRestore?: (file: FileItem) => void;
+  isInTrash?: boolean;
 }
 
 const FileCard: React.FC<FileCardProps> = ({
@@ -35,7 +37,9 @@ const FileCard: React.FC<FileCardProps> = ({
   onShare,
   onDelete,
   onDownload,
-  onClick
+  onClick,
+  onRestore,
+  isInTrash = false
 }) => {
   const [showMenu, setShowMenu] = React.useState(false);
   
@@ -96,12 +100,6 @@ const FileCard: React.FC<FileCardProps> = ({
     setShowMenu(!showMenu);
   };
 
-  const handleMenuAction = (e: React.MouseEvent, action: () => void) => {
-    e.stopPropagation();
-    action();
-    setShowMenu(false);
-  };
-
   return (
     <div 
       className={`
@@ -136,71 +134,82 @@ const FileCard: React.FC<FileCardProps> = ({
           </button>
           
           {showMenu && (
-            <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10">
-              <button 
-                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                onClick={(e) => handleMenuAction(e, () => onStar(file))}
-              >
-                <Star className={`w-4 h-4 mr-2 ${file.starred ? 'text-yellow-500 fill-yellow-500' : 'text-gray-500 dark:text-gray-400'}`} />
-                {file.starred ? 'Unstar' : 'Star'}
-              </button>
-              <button 
-                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                onClick={(e) => handleMenuAction(e, () => onShare(file))}
-              >
-                <Share2 className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" />
-                Share
-              </button>
-              <button 
-                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                onClick={(e) => handleMenuAction(e, () => onDownload(file))}
-              >
-                <Download className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" />
-                Download
-              </button>
-              <button 
-                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                onClick={(e) => handleMenuAction(e, () => onRename(file))}
-              >
-                <Edit className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" />
-                Rename
-              </button>
-              <button 
-                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center text-red-600"
-                onClick={(e) => handleMenuAction(e, () => onDelete(file))}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
-              </button>
+            <div className="absolute right-0 top-6 z-10 bg-white dark:bg-gray-800 rounded-md shadow-lg p-2">
+              <div className="flex flex-col space-y-2">
+                {!isInTrash && (
+                  <>
+                    <button onClick={() => { setShowMenu(false); onStar(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                      <Star className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => { setShowMenu(false); onRename(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => { setShowMenu(false); onShare(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => { setShowMenu(false); onDownload(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                      <Download className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => { setShowMenu(false); onDelete(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-red-500">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+                
+                {isInTrash && (
+                  <>
+                    <button 
+                      onClick={() => { 
+                        setShowMenu(false); 
+                        if (onRestore) onRestore(file); 
+                      }} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-green-500"
+                    >
+                      <span className="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 7v6h6" />
+                          <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+                        </svg>
+                        <span className="ml-1 text-xs">Restore</span>
+                      </span>
+                    </button>
+                    <button 
+                      onClick={() => { 
+                        setShowMenu(false); 
+                        onDelete(file); 
+                      }} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-red-500"
+                    >
+                      <span className="flex items-center">
+                        <Trash2 className="w-4 h-4" />
+                        <span className="ml-1 text-xs">Delete</span>
+                      </span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
-
-      <div className="mt-4 flex flex-col items-center">
-        {getFileIcon()}
-        <h3 className="mt-2 text-sm font-medium text-center truncate w-full">{file.name}</h3>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {formatFileSize(file.size)} • {formatDate(file.modifiedAt)}
-        </div>
-      </div>
       
-      {(file.shared || file.starred) && (
-        <div className="flex justify-center mt-2 space-x-2">
-          {file.shared && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-              <Share2 className="w-3 h-3 mr-1" />
-              Shared
-            </span>
-          )}
-          {file.starred && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-              <Star className="w-3 h-3 mr-1 fill-current" />
-              Starred
-            </span>
-          )}
+      <div className="flex flex-col space-y-2">
+        <div className="flex items-center space-x-3">
+          {getFileIcon()}
+          <div className="flex-1 truncate">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {formatFileSize(file.size)} • {formatDate(file.modifiedAt)}
+            </p>
+          </div>
         </div>
-      )}
+        
+        {file.starred && (
+          <div className="absolute top-2 left-2">
+            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

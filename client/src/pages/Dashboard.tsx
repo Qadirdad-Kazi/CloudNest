@@ -12,7 +12,7 @@ import Sidebar from '../components/layout/Sidebar';
 import FileCard from '../components/file/FileCard';
 import FolderCard from '../components/file/FolderCard';
 import ShareModal from '../components/modals/ShareModal';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useFiles } from '../context/FileContext';
 import { FileItem, Folder, ShareLink } from '../types';
 
