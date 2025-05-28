@@ -35,7 +35,6 @@ Test Cases:
 5. Admin Functions
 - User CRUD operations
 - Storage quota management
-- Activity log viewing
 - Analytics data accuracy
 - System settings
 

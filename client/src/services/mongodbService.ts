@@ -1,6 +1,6 @@
-import axios from 'axios';
+import axios from '../utils/axios'; // Use custom axios instance with authentication
 import { FileItem } from '../types';
-import { API_CONFIG, API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
 
 // Create a service for MongoDB operations
 export const mongodbService = {
@@ -29,12 +29,13 @@ export const mongodbService = {
       
       // Send the document to the server
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}${API_ENDPOINTS.DOCUMENTS.UPLOAD}`, 
+        API_ENDPOINTS.DOCUMENTS.UPLOAD, // The base URL is already included in the axios instance
         formData, 
         {
           headers: {
             'Content-Type': 'multipart/form-data'
           },
+          withCredentials: true, // Ensure cookies are sent with the request
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total && onProgress) {
               const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -73,9 +74,10 @@ export const mongodbService = {
     try {
       // Get the document from the server
       const response = await axios.get(
-        `${API_CONFIG.BASE_URL}${API_ENDPOINTS.DOCUMENTS.GET}/${documentId}`, 
+        `${API_ENDPOINTS.DOCUMENTS.GET}/${documentId}`, 
         {
-          responseType: 'blob'
+          responseType: 'blob',
+          withCredentials: true // Ensure cookies are sent with the request
         }
       );
       
