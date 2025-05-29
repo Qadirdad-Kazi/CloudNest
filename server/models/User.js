@@ -62,6 +62,10 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0 // in bytes
   },
+  storageLimit: {
+    type: Number,
+    default: 5 * 1024 * 1024 * 1024 // 5GB in bytes
+  },
   filesCount: {
     type: Number,
     default: 0

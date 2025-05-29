@@ -302,6 +302,40 @@ export const updateStats = async (req, res) => {
   }
 };
 
+// Get user storage information
+export const getStorageInfo = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('storageUsed storageLimit');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Calculate storage percentage used
+    const storagePercentage = user.storageLimit > 0 
+      ? (user.storageUsed / user.storageLimit) * 100 
+      : 0;
+    
+    // Check if storage is nearly full (over 80%)
+    const isNearlyFull = storagePercentage > 80;
+    
+    // Check if storage is critically full (over 95%)
+    const isCriticallyFull = storagePercentage > 95;
+    
+    res.json({
+      storageUsed: user.storageUsed,
+      storageLimit: user.storageLimit,
+      storagePercentage: parseFloat(storagePercentage.toFixed(2)),
+      isNearlyFull,
+      isCriticallyFull,
+      remainingStorage: user.storageLimit - user.storageUsed
+    });
+  } catch (error) {
+    console.error('Error getting storage info:', error);
+    res.status(500).json({ message: 'Failed to get storage information' });
+  }
+};
+
 // Delete account
 export const deleteAccount = async (req, res) => {
   try {

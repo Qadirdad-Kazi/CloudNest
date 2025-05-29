@@ -20,71 +20,81 @@ export const mongodbService = {
     try {
       // Create a FormData object to send the file
       const formData = new FormData();
-      formData.append('file', file);
       
-      // Add metadata
+      // Append file as the first item (important for multipart parsing)
+      formData.append('file', file, file.name);
+      
+      // Add metadata - ensure proper string conversion for all values
       Object.entries(metadata).forEach(([key, value]) => {
-        formData.append(key, typeof value === 'string' ? value : JSON.stringify(value));
+        if (value !== undefined && value !== null) {
+          // Convert objects and arrays to JSON strings
+          if (typeof value === 'object') {
+            formData.append(key, JSON.stringify(value));
+          } else {
+            // Convert primitive values to strings
+            formData.append(key, String(value));
+          }
+        }
       });
       
       // Send the document to the server
       const response = await axios.post(
-        API_ENDPOINTS.DOCUMENTS.UPLOAD, // The base URL is already included in the axios instance
+        API_ENDPOINTS.DOCUMENTS.UPLOAD,
         formData, 
         {
           headers: {
             'Content-Type': 'multipart/form-data'
           },
-          withCredentials: true, // Ensure cookies are sent with the request
+          withCredentials: true,
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total && onProgress) {
               const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              onProgress(percentCompleted > 95 ? 95 : percentCompleted); // Cap at 95% until complete
+              onProgress(percentCompleted > 95 ? 95 : percentCompleted);
             }
           }
         }
       );
       
-      // Clean up progress interval
+      // Clean up progress interval if it exists
       if (progressInterval) {
         clearInterval(progressInterval);
         if (onProgress) onProgress(100);
       }
       
-      // Return the document data from MongoDB
       return response.data;
-    } catch (error) {
-      console.error('Error uploading document to MongoDB:', error);
-      
-      // Clean up progress interval
+    } catch (error: any) {
+      // Clean up progress interval if it exists
       if (progressInterval) {
         clearInterval(progressInterval);
-        if (onProgress) onProgress(100);
       }
       
-      // Log the error details for debugging
-      console.log('Document upload failed with metadata:', metadata);
-      
-      throw new Error('Failed to upload document to MongoDB');
+      console.error('Error uploading document:', error);
+      throw new Error(`Failed to upload document: ${error?.message || 'Unknown error'}`);
     }
   },
   
   // Get a document from MongoDB
   async getDocument(documentId: string): Promise<Blob> {
     try {
-      // Get the document from the server
-      const response = await axios.get(
-        `${API_ENDPOINTS.DOCUMENTS.GET}/${documentId}`, 
-        {
-          responseType: 'blob',
-          withCredentials: true // Ensure cookies are sent with the request
-        }
-      );
-      
+      const response = await axios.get(`${API_ENDPOINTS.DOCUMENTS.GET}/${documentId}`, {
+        responseType: 'blob',
+        withCredentials: true
+      });
       return response.data;
     } catch (error) {
-      console.error('Error getting document from MongoDB:', error);
+      console.error('Error getting document:', error);
       throw new Error('Failed to retrieve document');
+    }
+  },
+  
+  // Get all documents from the database
+  async getAllDocuments(): Promise<FileItem[]> {
+    try {
+      const response = await axios.get(API_ENDPOINTS.DOCUMENTS.GET);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting all documents:', error);
+      throw new Error('Failed to retrieve documents');
     }
   }
 };

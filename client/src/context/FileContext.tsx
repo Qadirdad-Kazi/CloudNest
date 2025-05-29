@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { FileItem, Folder, ShareLink, BreadcrumbItem } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from './NotificationContext';
@@ -8,6 +8,7 @@ import { shareLinkService } from '../services/shareLinkService';
 import axios from '../utils/axios';
 import { API_CONFIG, API_ENDPOINTS } from '../config/api';
 
+// Define the shape of our context
 interface FileContextType {
   files: FileItem[];
   folders: Folder[];
@@ -39,6 +40,7 @@ interface FileContextType {
   getTrashFiles: () => Promise<FileItem[]>;
 }
 
+// Create the context with default values
 const FileContext = createContext<FileContextType>({
   files: [],
   folders: [],
@@ -70,11 +72,15 @@ const FileContext = createContext<FileContextType>({
   getTrashFiles: async () => [],
 });
 
+// Custom hook to use the file context
 export const useFiles = () => useContext(FileContext);
 
+// Provider component
 export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
+  
+  // State variables
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
@@ -85,6 +91,22 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [error, setError] = useState<string | null>(null);
   const [storageUsed, setStorageUsed] = useState(0);
   const storageLimit = 1024 * 1024 * 1024; // 1GB
+
+  // Calculate breadcrumbs based on current path
+  const getBreadcrumbs = (path: string): BreadcrumbItem[] => {
+    const parts = path.split('/').filter(part => part !== '');
+    const breadcrumbs: BreadcrumbItem[] = [{ name: 'Home', path: '/' }];
+    
+    let currentPath = '';
+    for (const part of parts) {
+      currentPath += `/${part}`;
+      breadcrumbs.push({ name: part, path: currentPath });
+    }
+    
+    return breadcrumbs;
+  };
+
+  const breadcrumbs = getBreadcrumbs(currentPath);
 
   // Calculate storage used
   useEffect(() => {
@@ -99,97 +121,66 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         message: 'You are running out of storage space. Consider upgrading your plan or deleting unnecessary files.',
       });
     }
-  }, [files, storageLimit, addNotification]);
-
-  // Calculate breadcrumbs based on current path
-  const breadcrumbs = React.useMemo(() => {
-    const pathParts = currentPath.split('/').filter(Boolean);
-    const crumbs: BreadcrumbItem[] = [{ name: 'My Drive', path: '/' }];
-    
-    let currentBuildPath = '';
-    pathParts.forEach(part => {
-      currentBuildPath += `/${part}`;
-      crumbs.push({
-        name: part,
-        path: currentBuildPath,
-      });
-    });
-    
-    return crumbs;
-  }, [currentPath]);
+  }, [files, addNotification]);
 
   // Load files and folders when path changes
   useEffect(() => {
-    if (!user) return;
-    
-    // Load files when path changes
     loadFiles();
-  }, [currentPath, user]);
+  }, [currentPath]);
 
-  const createFolder = async (name: string) => {
-    setIsLoading(true);
-    setError(null);
-    
+  // Create a new folder
+  const createFolder = async (name: string): Promise<void> => {
     try {
-      // Create folder data - only send name and parentPath (not the full path)
-      const folderData = {
-        name,
-        path: currentPath // This is the parent path where the folder should be created
-      };
+      setIsLoading(true);
+      setError(null);
       
-      // Call API to create folder using folderService
-      const newFolder = await folderService.createFolder(folderData);
+      const newFolder = await folderService.createFolder({ name, path: currentPath });
       
-      // Update state with the new folder from server
       setFolders(prev => [...prev, newFolder]);
-      
-      // Reload files and folders to ensure everything is in sync with the server
-      await loadFiles();
       
       addNotification({
         type: 'success',
         message: `Folder "${name}" created successfully`,
       });
-    } catch (err) {
+    } catch (error) {
+      console.error('Error creating folder:', error);
       setError('Failed to create folder');
-      console.error(err);
       addNotification({
         type: 'error',
-        title: 'Error Creating Folder',
-        message: 'Failed to create the folder. Please try again.',
+        message: 'Failed to create folder',
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const uploadFile = async (file: File) => {
-    setIsLoading(true);
-    setError(null);
-    setUploadProgress(0);
-    
+  // Upload a file
+  const uploadFile = async (file: File): Promise<void> => {
     try {
-      // Upload the file using the file service
-      const uploadedFile = await fileService.uploadFile(
-        file,
-        currentPath,
-        (progress) => setUploadProgress(progress)
-      );
+      setIsLoading(true);
+      setError(null);
+      setUploadProgress(0);
       
-      // Update state with the new file
+      console.log(`Uploading file to path: "${currentPath}"`);
+      
+      const uploadedFile = await fileService.uploadFile(file, currentPath, (progress) => {
+        setUploadProgress(progress);
+      });
+      
+      console.log('File uploaded successfully:', uploadedFile);
+      
       setFiles(prev => [...prev, uploadedFile]);
       
       addNotification({
         type: 'success',
         message: `File "${file.name}" uploaded successfully`,
       });
-    } catch (err) {
+    } catch (error) {
+      console.error('Error uploading file:', error);
       setError('Failed to upload file');
-      console.error(err);
       addNotification({
         type: 'error',
-        title: 'Error Uploading File',
-        message: 'Failed to upload the file. Please try again.',
+        message: 'Failed to upload file',
       });
     } finally {
       setIsLoading(false);
@@ -197,38 +188,27 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const deleteItems = async (items: (FileItem | Folder)[]) => {
-    setIsLoading(true);
-    setError(null);
-    
+  // Delete multiple items (files and/or folders)
+  const deleteItems = async (items: (FileItem | Folder)[]): Promise<void> => {
     try {
-      // Process files and folders separately
+      setIsLoading(true);
+      setError(null);
+      
       const fileIds = items
-        .filter((item): item is FileItem => 'type' in item)
-        .map(file => file.id);
+        .filter(item => 'type' in item) // Only files have a 'type' property
+        .map(item => item.id);
       
       const folderIds = items
-        .filter((item): item is Folder => !('type' in item))
-        .map(folder => folder.id);
+        .filter(item => !('type' in item)) // Folders don't have a 'type' property
+        .map(item => item.id);
       
-      // Delete files
       if (fileIds.length > 0) {
-        for (const fileId of fileIds) {
-          await fileService.deleteFile(fileId, true); // Skip trash, delete permanently
-        }
-        
-        // Update state
+        await Promise.all(fileIds.map(id => fileService.deleteFile(id)));
         setFiles(prev => prev.filter(file => !fileIds.includes(file.id)));
       }
       
-      // Delete folders
       if (folderIds.length > 0) {
-        for (const folderId of folderIds) {
-          // Call API to delete folder
-          await axios.delete(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FOLDERS.DELETE}/${folderId}`);
-        }
-        
-        // Update state
+        await Promise.all(folderIds.map(id => folderService.deleteFolder(id)));
         setFolders(prev => prev.filter(folder => !folderIds.includes(folder.id)));
       }
       
@@ -236,47 +216,36 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         type: 'success',
         message: `${items.length} item(s) deleted successfully`,
       });
-    } catch (err) {
+      
+      // Clear selection after deleting
+      setSelectedItems([]);
+    } catch (error) {
+      console.error('Error deleting items:', error);
       setError('Failed to delete items');
-      console.error(err);
       addNotification({
         type: 'error',
-        title: 'Error Deleting Items',
-        message: 'Failed to delete the selected items. Please try again.',
+        message: 'Failed to delete items',
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const renameItem = async (item: FileItem | Folder, newName: string) => {
-    setIsLoading(true);
-    setError(null);
-    
+  // Rename a file or folder
+  const renameItem = async (item: FileItem | Folder, newName: string): Promise<void> => {
     try {
+      setIsLoading(true);
+      setError(null);
+      
       if ('type' in item) {
         // It's a file
-        // Call API to rename file
-        const response = await axios.patch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.LIST}/${item.id}/rename`, {
-          newName,
-        });
-        
-        const updatedFile = response.data;
-        
-        // Update state
+        const updatedFile = await fileService.renameFile(item.id, newName);
         setFiles(prev => prev.map(file => 
           file.id === item.id ? updatedFile : file
         ));
       } else {
         // It's a folder
-        // Call API to rename folder
-        const response = await axios.patch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FOLDERS.CREATE}/${item.id}/rename`, {
-          newName,
-        });
-        
-        const updatedFolder = response.data;
-        
-        // Update state
+        const updatedFolder = await folderService.renameFolder(item.id, newName);
         setFolders(prev => prev.map(folder => 
           folder.id === item.id ? updatedFolder : folder
         ));
@@ -286,157 +255,135 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         type: 'success',
         message: `Item renamed to "${newName}" successfully`,
       });
-    } catch (err) {
+    } catch (error) {
+      console.error('Error renaming item:', error);
       setError('Failed to rename item');
-      console.error(err);
       addNotification({
         type: 'error',
-        title: 'Error Renaming Item',
-        message: 'Failed to rename the item. Please try again.',
+        message: 'Failed to rename item',
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const toggleSelect = (item: FileItem | Folder) => {
+  // Toggle selection of an item
+  const toggleSelect = (item: FileItem | Folder): void => {
     setSelectedItems(prev => {
-      const isSelected = prev.some(selectedItem => 
-        'id' in selectedItem && 'id' in item && selectedItem.id === item.id
-      );
+      const isSelected = prev.some(i => i.id === item.id);
       
       if (isSelected) {
-        return prev.filter(selectedItem => 
-          !('id' in selectedItem && 'id' in item && selectedItem.id === item.id)
-        );
+        return prev.filter(i => i.id !== item.id);
       } else {
         return [...prev, item];
       }
     });
   };
 
-  const clearSelection = () => {
+  // Clear all selections
+  const clearSelection = (): void => {
     setSelectedItems([]);
   };
 
-  const selectAll = () => {
+  // Select all items in the current view
+  const selectAll = (): void => {
     const allItems = [...files, ...folders];
     setSelectedItems(allItems);
   };
 
-  const starItem = async (item: FileItem | Folder) => {
-    setIsLoading(true);
-    setError(null);
-    
+  // Star/unstar an item
+  const starItem = async (item: FileItem | Folder): Promise<void> => {
     try {
+      setIsLoading(true);
+      setError(null);
+      
       if ('type' in item) {
         // It's a file
-        await fileService.starFile(item.id);
-        
-        // Update state
+        const updatedFile = await fileService.starFile(item.id);
         setFiles(prev => prev.map(file => 
-          file.id === item.id ? { ...file, starred: !file.starred } : file
+          file.id === item.id ? updatedFile : file
         ));
       } else {
         // It's a folder
-        // Call API to star folder
-        const response = await axios.patch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FOLDERS.CREATE}/${item.id}/star`);
-        const updatedFolder = response.data;
-        
-        // Update state
+        // Since folderService doesn't have a toggleStar method, we need to implement a workaround
+        // For now, we'll just update the local state
+        // TODO: Implement proper folder starring functionality on the backend
+        const updatedFolder = { ...item, starred: !item.starred };
         setFolders(prev => prev.map(folder => 
           folder.id === item.id ? updatedFolder : folder
         ));
       }
       
+      const action = item.starred ? 'removed from' : 'added to';
+      
       addNotification({
         type: 'success',
-        message: `Item ${item.starred ? 'removed from' : 'added to'} starred items`,
+        message: `Item ${action} favorites`,
       });
-    } catch (err) {
-      setError('Failed to star item');
-      console.error(err);
+    } catch (error) {
+      console.error('Error starring item:', error);
+      setError('Failed to update favorites');
       addNotification({
         type: 'error',
-        title: 'Error Starring Item',
-        message: 'Failed to update starred status. Please try again.',
+        message: 'Failed to update favorites',
       });
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Share an item
   const shareItem = async (
     item: FileItem | Folder, 
     isPublic: boolean, 
     password?: string, 
     expiry?: Date
   ): Promise<ShareLink> => {
-    setIsLoading(true);
-    setError(null);
-    
     try {
-      // Call API to create share link using shareLinkService
-      const shareData = {
-        fileId: item.id, // API expects fileId property
+      setIsLoading(true);
+      setError(null);
+      
+      const shareLink = await shareLinkService.createShareLink({
+        itemId: item.id,
+        itemType: 'file' in item ? 'file' : 'folder', // Determine if it's a file or folder
+        isPublic,
         password,
-        expiresAt: expiry,
-      };
+        expiresAt: expiry, // Pass the Date object directly
+      });
       
-      const newShareLink = await shareLinkService.createShareLink(shareData);
+      setShareLinks(prev => [...prev, shareLink]);
       
-      setShareLinks(prev => [...prev, newShareLink]);
-      
-      // Update the item's shared status
-      if ('type' in item) { // It's a file
-        setFiles(prev => prev.map(file => 
-          file.id === item.id 
-            ? { ...file, shared: true } 
-            : file
-        ));
-      } else { // It's a folder
-        setFolders(prev => prev.map(folder => 
-          folder.id === item.id 
-            ? { ...folder, shared: true } 
-            : folder
-        ));
-      }
-
       addNotification({
         type: 'success',
-        title: 'Item Shared',
-        message: `Share link created${isPublic ? ' (public access)' : ''}`,
+        message: 'Share link created successfully',
       });
       
-      return newShareLink;
-    } catch (err) {
-      setError('Failed to share item');
-      console.error(err);
+      return shareLink;
+    } catch (error) {
+      console.error('Error sharing item:', error);
+      setError('Failed to create share link');
       addNotification({
         type: 'error',
-        title: 'Error Sharing Item',
-        message: 'Failed to create share link. Please try again.',
+        message: 'Failed to create share link',
       });
-      throw err;
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Search for items
   const searchItems = async (query: string): Promise<(FileItem | Folder)[]> => {
-    setIsLoading(true);
-    setError(null);
-    
     try {
-      // Call API to search items
-      const response = await axios.get(`${API_CONFIG.BASE_URL}/search`, {
-        params: { query }
-      });
+      setIsLoading(true);
+      setError(null);
       
-      return response.data;
-    } catch (err) {
+      const results = await fileService.searchFiles(query);
+      
+      return results;
+    } catch (error) {
+      console.error('Error searching items:', error);
       setError('Failed to search items');
-      console.error(err);
       addNotification({
         type: 'error',
         title: 'Error Searching',
@@ -448,14 +395,18 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Load files and folders for the current path
   const loadFiles = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
+      console.log('Loading files for path:', currentPath);
+      
       // Get files for the current path from the server
       try {
         const filesResponse = await fileService.getFiles(currentPath);
+        console.log('Files loaded:', filesResponse);
         setFiles(Array.isArray(filesResponse) ? filesResponse : []);
         
         // Calculate total storage used from the files we have
@@ -468,41 +419,44 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // Get folders for the current path from the server
       try {
-        // Call API to get folders using folderService
         const foldersResponse = await folderService.getFolders(currentPath);
+        console.log('Folders loaded:', foldersResponse);
         setFolders(Array.isArray(foldersResponse) ? foldersResponse : []);
       } catch (folderError) {
         console.error('Error loading folders from server:', folderError);
         setFolders([]);
       }
       
-      // Get share links from the server
-      try {
-        // Call API to get share links using shareLinkService
-        const shareLinksResponse = await shareLinkService.getShareLinks();
-        setShareLinks(Array.isArray(shareLinksResponse) ? shareLinksResponse : []);
-      } catch (shareError) {
-        console.error('Error loading share links from server:', shareError);
-        setShareLinks([]);
-      }
     } catch (error) {
       console.error('Error loading files and folders:', error);
-      setError('Failed to load your files and folders. Please try again.');
-      // Set empty arrays as fallback
-      setFiles([]);
-      setFolders([]);
-      setShareLinks([]);
+      setError('Failed to load files and folders');
+      addNotification({
+        type: 'error',
+        message: 'Failed to load files and folders',
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const deleteFile = async (fileId: string, skipTrash: boolean = false) => {
+  // Delete a single file
+  const deleteFile = async (fileId: string, skipTrash = false): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
-      await fileService.deleteFile(fileId, skipTrash);
-      await loadFiles(); // Reload files after deletion
+      
+      if (skipTrash) {
+        // Permanently delete the file
+        await fileService.deleteFile(fileId);
+      } else {
+        // Move to trash
+        await moveToTrash(fileId);
+        return;
+      }
+      
+      // Update local state
+      setFiles(prev => prev.filter(file => file.id !== fileId));
+      
       addNotification({
         type: 'success',
         message: 'File deleted successfully',
@@ -519,22 +473,33 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const starFile = async (fileId: string) => {
+  // Star/unstar a file
+  const starFile = async (fileId: string): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
-      await fileService.starFile(fileId);
-      await loadFiles(); // Reload files after starring
+      
+      const updatedFile = await fileService.toggleStar(fileId);
+      
+      // Update local state
+      setFiles(prev => prev.map(file => 
+        file.id === fileId 
+          ? updatedFile 
+          : file
+      ));
+      
+      const action = updatedFile.starred ? 'added to' : 'removed from';
+      
       addNotification({
         type: 'success',
-        message: 'File starred successfully',
+        message: `File ${action} favorites`,
       });
     } catch (error) {
       console.error('Error starring file:', error);
-      setError('Failed to star file');
+      setError('Failed to update favorites');
       addNotification({
         type: 'error',
-        message: 'Failed to star file',
+        message: 'Failed to update favorites',
       });
     } finally {
       setIsLoading(false);
@@ -542,18 +507,31 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Move a file to trash
-  const moveToTrash = async (fileId: string) => {
+  const moveToTrash = async (fileId: string): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Find the file that's being moved to trash
+      const fileToTrash = files.find(file => file.id === fileId);
+      if (!fileToTrash) {
+        throw new Error('File not found');
+      }
+      
+      // Call the API to move the file to trash
       await fileService.moveToTrash(fileId);
       
-      // Update local state
-      setFiles(prev => prev.map(file => 
-        file.id === fileId 
-          ? { ...file, inTrash: true } 
-          : file
-      ));
+      // Remove the file from the current files list
+      setFiles(prev => prev.filter(file => file.id !== fileId));
+      
+      // Add the file to the trashed files list with inTrash flag
+      const trashedFile = { ...fileToTrash, inTrash: true, deletedAt: new Date().toISOString() };
+      
+      // Store the trashed files in localStorage for persistence
+      const storedTrashedFiles = localStorage.getItem('trashedFiles');
+      let trashedFiles = storedTrashedFiles ? JSON.parse(storedTrashedFiles) : [];
+      trashedFiles = [...trashedFiles, trashedFile];
+      localStorage.setItem('trashedFiles', JSON.stringify(trashedFiles));
       
       addNotification({
         type: 'success',
@@ -572,22 +550,33 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Restore a file from trash
-  const restoreFromTrash = async (fileId: string) => {
+  const restoreFromTrash = async (fileId: string): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
-      await fileService.restoreFromTrash(fileId);
       
-      // Update local state
-      setFiles(prev => prev.map(file => 
-        file.id === fileId 
-          ? { ...file, inTrash: false } 
-          : file
-      ));
+      // Get the file from the server with its original path
+      const restoredFile = await fileService.restoreFromTrash(fileId);
+      
+      console.log('File restored with data:', restoredFile);
+      
+      // Remove the file from localStorage trash if it exists
+      const storedTrashedFiles = localStorage.getItem('trashedFiles');
+      if (storedTrashedFiles) {
+        const trashedFiles = JSON.parse(storedTrashedFiles);
+        const updatedTrashedFiles = trashedFiles.filter((file: FileItem) => file.id !== fileId);
+        localStorage.setItem('trashedFiles', JSON.stringify(updatedTrashedFiles));
+      }
+      
+      // If we're currently viewing the path where the file should be restored to,
+      // add it back to the files list
+      if (currentPath === restoredFile.path || currentPath === restoredFile.parentPath) {
+        setFiles(prev => [...prev, restoredFile]);
+      }
       
       addNotification({
         type: 'success',
-        message: 'File restored from trash',
+        message: `File restored to ${restoredFile.path}`,
       });
     } catch (error) {
       console.error('Error restoring file from trash:', error);
@@ -602,25 +591,36 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Empty trash (permanently delete all files in trash)
-  const emptyTrash = async () => {
+  const emptyTrash = async (): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Get all files in trash first
+      // Get all files in trash first to show a confirmation if needed
       const trashFiles = await getTrashFiles();
       
-      // Confirm with the user if there are many files
-      if (trashFiles.length > 10) {
-        // In a real app, you would show a confirmation dialog here
-        console.log(`Warning: About to permanently delete ${trashFiles.length} files`);
+      if (trashFiles.length === 0) {
+        addNotification({
+          type: 'info',
+          message: 'Trash is already empty',
+        });
+        setIsLoading(false);
+        return;
       }
       
-      // Empty the trash
-      await fileService.emptyTrash();
+      // In a real app, you might want to show a confirmation dialog here
+      console.log(`About to permanently delete ${trashFiles.length} files`);
       
-      // Update local state
-      setFiles(prev => prev.filter(file => !file.inTrash));
+      // Empty the trash on the server - this now returns the IDs of deleted files
+      const deletedFileIds = await fileService.emptyTrash();
+      
+      console.log('Deleted file IDs:', deletedFileIds);
+      
+      // Remove the deleted files from the current view if any are present
+      setFiles(prev => prev.filter(file => !deletedFileIds.includes(file.id)));
+      
+      // Also clear any local trash data
+      localStorage.removeItem('trashedFiles');
       
       addNotification({
         type: 'success',
@@ -642,9 +642,33 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getTrashFiles = async (): Promise<FileItem[]> => {
     try {
       setIsLoading(true);
-      // Get trash files from the server
-      const trashFiles = await fileService.getTrashFiles();
-      return trashFiles;
+      
+      // Try to get trash files from the server
+      let serverTrashFiles: FileItem[] = [];
+      try {
+        serverTrashFiles = await fileService.getTrashFiles();
+        console.log('Server trash files:', serverTrashFiles);
+      } catch (serverError) {
+        console.warn('Could not fetch trash files from server, using local data:', serverError);
+      }
+      
+      // Also get any locally stored trash files
+      const storedTrashedFiles = localStorage.getItem('trashedFiles');
+      const localTrashFiles: FileItem[] = storedTrashedFiles ? JSON.parse(storedTrashedFiles) : [];
+      console.log('Local trash files:', localTrashFiles);
+      
+      // Merge server and local trash files, removing duplicates
+      const allTrashFiles = [...serverTrashFiles];
+      
+      // Add local trash files that aren't already in the server list
+      localTrashFiles.forEach(localFile => {
+        if (!allTrashFiles.some(file => file.id === localFile.id)) {
+          allTrashFiles.push(localFile);
+        }
+      });
+      
+      console.log('All trash files:', allTrashFiles);
+      return allTrashFiles;
     } catch (error) {
       console.error('Error getting trash files:', error);
       setError('Failed to get trash files');
@@ -652,12 +676,21 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         type: 'error',
         message: 'Failed to load trash files',
       });
-      return [];
+      
+      // Try to return local trash files as fallback
+      try {
+        const storedTrashedFiles = localStorage.getItem('trashedFiles');
+        return storedTrashedFiles ? JSON.parse(storedTrashedFiles) : [];
+      } catch (localError) {
+        console.error('Error getting local trash files:', localError);
+        return [];
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Return the provider with all values and functions
   return (
     <FileContext.Provider
       value={{
@@ -695,3 +728,5 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     </FileContext.Provider>
   );
 };
+
+export default FileProvider;

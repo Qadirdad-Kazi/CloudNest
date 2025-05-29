@@ -1,9 +1,9 @@
 import axios from '../utils/axios';
 import { Folder } from '../types';
-import { API_CONFIG, API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
 
-// Create axios instance with base configuration
-const API_URL = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.FOLDERS.LIST}`;
+// Use the API endpoint directly as it now includes the base URL
+const API_URL = API_ENDPOINTS.FOLDERS.LIST;
 
 export const folderService = {
   // Create a new folder
@@ -26,7 +26,7 @@ export const folderService = {
       return response.data;
     } catch (error) {
       console.error('Error getting folders:', error);
-      return [];
+      throw error;
     }
   },
   

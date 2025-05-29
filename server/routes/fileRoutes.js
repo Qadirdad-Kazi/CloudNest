@@ -22,20 +22,42 @@ const storage = multer.diskStorage({
   }
 });
 
+// Sanitize filename to prevent path traversal attacks
+const sanitizeFilename = (filename) => {
+  return filename
+    .replace(/[^a-zA-Z0-9_.-]/g, '_') // Replace any character that's not alphanumeric, underscore, dot, or hyphen
+    .replace(/\.\./g, '_'); // Replace double dots to prevent directory traversal
+};
+
 const upload = multer({ 
-  storage: storage,
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const uploadDir = 'uploads/';
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+      // Sanitize filename and use UUID to ensure uniqueness
+      const sanitizedName = sanitizeFilename(file.originalname);
+      cb(null, `${uuidv4()}-${sanitizedName}`);
+    }
+  }),
   limits: {
-    fileSize: process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 10485760 // 10MB default
+    fileSize: process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 10485760, // 10MB default
+    files: 1 // Allow only one file per request
   },
   fileFilter: function (req, file, cb) {
+    // Strict content type validation
     const allowedTypes = process.env.ALLOWED_FILE_TYPES ? 
       process.env.ALLOWED_FILE_TYPES.split(',') : 
-      ['image/jpeg', 'image/png', 'application/pdf', 'text/plain'];
+      ['image/jpeg', 'image/png', 'application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only jpg, png, pdf, and txt files are allowed.'));
+      cb(new Error(`Invalid file type. Allowed types: ${allowedTypes.join(', ')}`));
     }
   }
 });
@@ -145,26 +167,32 @@ router.delete('/:id', async (req, res) => {
     const { permanent = false } = req.query;
     const userId = req.user._id;
 
+    console.log(`Deleting file ${id}, permanent: ${permanent}, userId: ${userId}`);
+
     // Find the file
     const file = await File.findOne({ _id: id, userId });
     
     if (!file) {
+      console.log(`File not found: ${id}`);
       return res.status(404).json({ message: 'File not found' });
     }
 
     if (permanent === 'true' || permanent === true) {
+      console.log(`Permanently deleting file: ${id}`);
       // Permanently delete the file
       await File.deleteOne({ _id: id, userId });
       
       // In a production environment, you would also delete the actual file from cloud storage here
-      
+      console.log(`File permanently deleted: ${id}`);
       res.json({ message: 'File permanently deleted', fileId: id });
     } else {
+      console.log(`Moving file to trash: ${id}`);
       // Move to trash
       file.isDeleted = true;
       file.deletedAt = new Date();
       await file.save();
       
+      console.log(`File moved to trash: ${id}`);
       res.json({ message: 'File moved to trash', fileId: id });
     }
   } catch (error) {
@@ -173,14 +201,68 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Move a file to trash
+router.patch('/:id/trash', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    console.log(`Moving file to trash: ${id}, userId: ${userId}`);
+
+    // Find the file
+    const file = await File.findOne({ _id: id, userId });
+    
+    if (!file) {
+      console.log(`File not found: ${id}`);
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    // Move to trash
+    file.isDeleted = true;
+    file.deletedAt = new Date();
+    await file.save();
+    
+    console.log(`File moved to trash: ${id}`);
+    res.json({ message: 'File moved to trash', fileId: id });
+  } catch (error) {
+    console.error('Error moving file to trash:', error);
+    res.status(500).json({ message: 'Failed to move file to trash' });
+  }
+});
+
 // Star/unstar a file
 router.patch('/star/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user._id;
     
-    // In a real implementation, you would toggle the starred status in the database
+    // Find the file by ID and user ID
+    const file = await File.findOne({ _id: id, userId });
     
-    res.json({ message: 'File star status updated' });
+    if (!file) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+    
+    // Toggle the isStarred status
+    file.isStarred = !file.isStarred;
+    
+    // Save the updated file to the database
+    await file.save();
+    
+    // Return the updated file
+    res.json({
+      id: file._id,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      path: file.path,
+      shared: file.shared || false,
+      starred: file.isStarred,
+      tags: file.tags || [],
+      createdAt: file.createdAt,
+      modifiedAt: file.updatedAt,
+      owner: file.userId
+    });
   } catch (error) {
     console.error('Error updating star status:', error);
     res.status(500).json({ message: 'Failed to update star status' });
@@ -231,19 +313,25 @@ router.get('/trash', async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // Query the database for files that are marked as deleted
-    const trashedFiles = await File.find({
-      userId,
-      isDeleted: true
-    }).sort({ deletedAt: -1 });
+    console.log(`Fetching trash files for user: ${userId}`);
     
-    // Transform the database objects to match the expected client format
+    // Find all files in trash for this user - ensure we're using toString() for proper comparison
+    const trashedFiles = await File.find({ 
+      userId: userId.toString(), 
+      isDeleted: true 
+    });
+    
+    console.log(`Found ${trashedFiles.length} files in trash`);
+    console.log('Trash files:', trashedFiles);
+    
+    // Format the response
     const formattedFiles = trashedFiles.map(file => ({
       id: file._id,
       name: file.name,
       type: file.type,
       size: file.size,
       path: file.path,
+      parentPath: file.parentPath || '/',
       starred: file.isStarred,
       shared: false, // This would need to be determined by checking ShareLinks
       createdAt: file.createdAt,
@@ -254,6 +342,7 @@ router.get('/trash', async (req, res) => {
       url: file.url
     }));
     
+    console.log('Returning formatted trash files:', formattedFiles);
     res.json(formattedFiles);
   } catch (error) {
     console.error('Error getting trash files:', error);
@@ -267,19 +356,42 @@ router.post('/trash', async (req, res) => {
     const { fileId } = req.body;
     const userId = req.user._id;
     
+    console.log(`Attempting to move file to trash: ${fileId}, userId: ${userId}`);
+    
     // Find the file and update its status
-    const file = await File.findOne({ _id: fileId, userId });
+    const file = await File.findOne({ _id: fileId, userId: userId.toString() });
     
     if (!file) {
+      console.log(`File not found: ${fileId}`);
       return res.status(404).json({ message: 'File not found' });
     }
+    
+    console.log(`File found: ${file.name}, current isDeleted status: ${file.isDeleted}`);
     
     // Update the file's trash status
     file.isDeleted = true;
     file.deletedAt = new Date();
-    await file.save();
+    file.isArchived = false; // Ensure it's not archived
     
-    res.json({ message: 'File moved to trash', fileId });
+    // Save the updated file
+    const updatedFile = await file.save();
+    console.log('Updated file document:', updatedFile);
+    
+    // Verify the file was updated correctly
+    const verifyFile = await File.findById(fileId);
+    console.log(`Verification - File ${fileId} isDeleted status: ${verifyFile.isDeleted}`);
+    
+    console.log(`File successfully moved to trash: ${fileId}, ${file.name}`);
+    res.json({ 
+      message: 'File moved to trash', 
+      fileId,
+      file: {
+        id: file._id,
+        name: file.name,
+        isDeleted: file.isDeleted,
+        deletedAt: file.deletedAt
+      }
+    });
   } catch (error) {
     console.error('Error moving file to trash:', error);
     res.status(500).json({ message: 'Failed to move file to trash' });
@@ -292,19 +404,51 @@ router.post('/restore', async (req, res) => {
     const { fileId } = req.body;
     const userId = req.user._id;
     
+    console.log(`Attempting to restore file from trash: ${fileId}, userId: ${userId}`);
+    
     // Find the file and update its status
-    const file = await File.findOne({ _id: fileId, userId, isDeleted: true });
+    const file = await File.findOne({ _id: fileId, userId: userId.toString(), isDeleted: true });
     
     if (!file) {
+      console.log(`File not found in trash: ${fileId}`);
       return res.status(404).json({ message: 'File not found in trash' });
     }
+    
+    console.log(`Found file to restore: ${file.name}, path: ${file.path}`);
     
     // Update the file's trash status
     file.isDeleted = false;
     file.deletedAt = null;
-    await file.save();
+    file.isArchived = false; // Ensure it's not archived
     
-    res.json({ message: 'File restored from trash', fileId });
+    // Save the updated file
+    const updatedFile = await file.save();
+    console.log('Restored file document:', updatedFile);
+    
+    // Format the response with the file details
+    const restoredFile = {
+      id: file._id,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      path: file.path,
+      parentPath: file.parentPath || '/',
+      starred: file.isStarred,
+      shared: false, // This would need to be determined by checking ShareLinks
+      createdAt: file.createdAt,
+      modifiedAt: file.modifiedAt,
+      owner: file.userId,
+      inTrash: false,
+      deletedAt: null,
+      url: file.url
+    };
+    
+    console.log(`File successfully restored from trash: ${fileId}, ${file.name}`);
+    res.json({ 
+      message: 'File restored from trash', 
+      fileId,
+      file: restoredFile
+    });
   } catch (error) {
     console.error('Error restoring file from trash:', error);
     res.status(500).json({ message: 'Failed to restore file from trash' });
@@ -316,21 +460,31 @@ router.delete('/trash/empty', async (req, res) => {
   try {
     const userId = req.user._id;
     
+    console.log(`Emptying trash for user: ${userId}`);
+    
     // Find all trashed files for this user
-    const trashedFiles = await File.find({ userId, isDeleted: true });
+    const trashedFiles = await File.find({ userId: userId.toString(), isDeleted: true });
+    
+    console.log(`Found ${trashedFiles.length} files in trash to process`);
     
     if (trashedFiles.length === 0) {
       return res.json({ message: 'Trash is already empty' });
     }
     
-    // Permanently delete all trashed files
-    await File.deleteMany({ userId, isDeleted: true });
+    // Get the IDs of all files to be deleted for the response
+    const deletedFileIds = trashedFiles.map(file => file._id.toString());
+    
+    // Permanently delete all trashed files as requested by the user
+    await File.deleteMany({ userId: userId.toString(), isDeleted: true });
+    
+    console.log(`Permanently deleted ${trashedFiles.length} files from trash`);
     
     // In a production environment, you would also delete the actual files from cloud storage here
     
     res.json({ 
       message: 'Trash emptied successfully', 
-      count: trashedFiles.length 
+      count: trashedFiles.length,
+      deletedFileIds: deletedFileIds
     });
   } catch (error) {
     console.error('Error emptying trash:', error);

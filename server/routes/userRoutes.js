@@ -9,6 +9,7 @@ import {
   getSettings,
   resetSettings,
   updateStats,
+  getStorageInfo,
   deleteAccount
 } from '../controllers/userController.js';
 
@@ -34,6 +35,9 @@ router.put('/password', updatePassword);
 
 // Stats routes
 router.put('/stats', updateStats);
+
+// Storage routes
+router.get('/storage', getStorageInfo);
 
 // Account deletion
 router.delete('/account', deleteAccount);

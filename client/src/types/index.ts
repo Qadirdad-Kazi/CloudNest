@@ -16,15 +16,18 @@ export interface FileItem {
   size: number;
   owner: string;
   path: string;
+  parentPath?: string; // Parent directory path
   shared: boolean;
   starred: boolean;
   inTrash?: boolean; // Whether the file is in trash
+  deletedAt?: string; // When the file was moved to trash
   tags: string[];
   createdAt: string;
   modifiedAt: string;
   thumbnail?: string;
   cloudinaryUrl?: string; // URL for images stored in Cloudinary
   mongodbId?: string; // ID for documents stored in MongoDB
+  url?: string; // File URL for download or preview
 }
 
 export interface Folder {

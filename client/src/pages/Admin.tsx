@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, Users, Activity, Settings } from 'lucide-react';
+import { BarChart3, Users, Activity, Settings, MessageSquare } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import UsersTable from '../components/admin/UsersTable';
@@ -105,6 +105,18 @@ const Admin: React.FC = () => {
               >
                 <Activity className="w-4 h-4 mr-2" />
                 Activity
+              </button>
+              
+              <button 
+                className={`py-3 px-4 border-b-2 font-medium text-sm flex items-center ${
+                  activeTab === 'suggestions' 
+                    ? 'border-indigo-600 text-indigo-600 dark:border-indigo-500 dark:text-indigo-500' 
+                    : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+                onClick={() => window.location.href = '/admin/suggestions'}
+              >
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Suggestions
               </button>
               
               <button 

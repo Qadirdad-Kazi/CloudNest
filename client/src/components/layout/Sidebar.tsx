@@ -1,4 +1,4 @@
-import React, { Dispatch, SetStateAction } from 'react';
+import React, { Dispatch, SetStateAction, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   HardDrive, 
@@ -10,9 +10,11 @@ import {
   Upload,
   Users,
   BarChart,
-  Settings
+  Settings,
+  MessageSquare,
+  AlertTriangle
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, StorageInfo } from '../../contexts/AuthContext';
 
 interface SidebarItemProps {
   icon: React.ReactNode;
@@ -44,15 +46,48 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
-  const { user } = useAuth();
+  const { user, getStorageInfo } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isAdmin = user?.role === 'admin';
   
-  const storageUsed = 0; // TODO: Get actual storage usage from user data
-  const storageLimit = 1024 * 1024 * 1024; // 1GB default
+  // State for storage information
+  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+  const [isLoadingStorage, setIsLoadingStorage] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  
+  // Default values
+  const storageUsed = storageInfo?.storageUsed || user?.storageUsed || 0;
+  const storageLimit = storageInfo?.storageLimit || user?.storageLimit || (5 * 1024 * 1024 * 1024); // 5GB default
   
   // Convert bytes to appropriate unit
+  // Fetch storage information
+  useEffect(() => {
+    const fetchStorageInfo = async () => {
+      if (!user) return;
+      
+      setIsLoadingStorage(true);
+      setStorageError(null);
+      
+      try {
+        const info = await getStorageInfo();
+        setStorageInfo(info);
+      } catch (error) {
+        console.error('Error fetching storage info:', error);
+        setStorageError('Failed to load storage information');
+      } finally {
+        setIsLoadingStorage(false);
+      }
+    };
+    
+    fetchStorageInfo();
+    
+    // Refresh storage info every 5 minutes
+    const intervalId = setInterval(fetchStorageInfo, 5 * 60 * 1000);
+    
+    return () => clearInterval(intervalId);
+  }, [user, getStorageInfo]);
+  
   const formatBytes = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     
@@ -168,6 +203,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
             />
           </>
         )}
+        
+        <div className="mt-6 mb-2 px-3 text-xs font-semibold text-gray-500 uppercase">
+          Help
+        </div>
+        
+        <SidebarItem 
+          icon={<MessageSquare className="w-5 h-5" />} 
+          label="Suggestions" 
+          path="/suggestions"
+          active={activeItem === 'suggestions' || location.pathname === '/suggestions'}
+          onClick={() => {
+            navigate('/suggestions');
+            onItemClick('suggestions');
+          }}
+        />
       </div>
       
       <div className="p-4 border-t border-gray-200 dark:border-gray-800">
@@ -175,15 +225,67 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
           <div className="flex justify-between text-sm">
             <span className="text-gray-600 dark:text-gray-400">Storage</span>
             <span className="font-medium">
-              {formatBytes(storageUsed)} / {formatBytes(storageLimit)}
+              {isLoadingStorage ? 'Loading...' : (
+                `${formatBytes(storageUsed)} / ${formatBytes(storageLimit)}`
+              )}
             </span>
           </div>
-          <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-indigo-600 rounded-full"
-              style={{ width: `${(storageUsed / storageLimit) * 100}%` }}
-            />
-          </div>
+          
+          {storageError ? (
+            <div className="text-xs text-red-500">{storageError}</div>
+          ) : (
+            <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div 
+                className={`h-full rounded-full ${storageUsed / storageLimit > 0.95 ? 'bg-red-500' : storageUsed / storageLimit > 0.8 ? 'bg-yellow-500' : 'bg-indigo-600'}`}
+                style={{ width: `${Math.min((storageUsed / storageLimit) * 100, 100)}%` }}
+              />
+            </div>
+          )}
+          
+          {/* Storage percentage display */}
+          {!isLoadingStorage && !storageError && (
+            <div className="text-xs text-center text-gray-500 dark:text-gray-400">
+              {storageInfo?.storagePercentage ? `${storageInfo.storagePercentage.toFixed(1)}% used` : `${((storageUsed / storageLimit) * 100).toFixed(1)}% used`}
+            </div>
+          )}
+          
+          {/* Storage warning notification */}
+          {!isLoadingStorage && !storageError && (
+            <>
+              {/* Critical storage warning (>95%) */}
+              {(storageInfo?.isCriticallyFull || storageUsed / storageLimit > 0.95) && (
+                <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-md">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                    </div>
+                    <div className="ml-2">
+                      <p className="text-xs text-red-700 dark:text-red-300">
+                        Storage critically full! Less than {formatBytes(storageLimit - storageUsed)} remaining.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Near full warning (>80% but <95%) */}
+              {(storageInfo?.isNearlyFull && !storageInfo?.isCriticallyFull) || 
+               (storageUsed / storageLimit > 0.8 && storageUsed / storageLimit <= 0.95) && (
+                <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                    </div>
+                    <div className="ml-2">
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                        Storage is getting full. Only {formatBytes(storageLimit - storageUsed)} remaining.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

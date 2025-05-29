@@ -1,13 +1,19 @@
 import axios from '../utils/axios';
 import { ShareLink } from '../types';
-import { API_CONFIG, API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
 
 // Create axios instance with base configuration
-const API_URL = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.SHARE_LINKS}`;
+const API_URL = API_ENDPOINTS.SHARE_LINKS;
 
 export const shareLinkService = {
   // Create a new share link
-  async createShareLink(data: { fileId: string; expiresAt?: Date; password?: string }): Promise<ShareLink> {
+  async createShareLink(data: { 
+    itemId: string; 
+    itemType: 'file' | 'folder';
+    isPublic?: boolean;
+    expiresAt?: Date; 
+    password?: string 
+  }): Promise<ShareLink> {
     try {
       const response = await axios.post(API_URL, data);
       return response.data;
@@ -20,7 +26,7 @@ export const shareLinkService = {
   // Get all share links
   async getShareLinks(): Promise<ShareLink[]> {
     try {
-      const response = await axios.get(`${API_CONFIG.BASE_URL}/share-links`);
+      const response = await axios.get(API_URL);
       return response.data;
     } catch (error) {
       console.error('Error getting share links:', error);

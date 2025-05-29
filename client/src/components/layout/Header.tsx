@@ -136,17 +136,19 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
                 <h3 className="text-sm font-medium">Notifications</h3>
                 <div className="flex space-x-2">
                   <button 
+                    key="mark-all-read"
                     className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                     onClick={handleMarkAllRead}
                   >
                     Mark all as read
                   </button>
                   <button 
+                    key="clear-read"
                     className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                     onClick={handleClearRead}
                   >
                     Clear all read
-        </button>
+                  </button>
                 </div>
               </div>
               
@@ -206,7 +208,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
               </div>
               
               <ul>
-                <li>
+                <li key="profile">
                   <button 
                     className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
                     onClick={() => handleNavigate('/profile')}
@@ -215,7 +217,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
                     Profile
                   </button>
                 </li>
-                <li>
+                <li key="settings">
                   <button 
                     className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
                     onClick={() => handleNavigate('/settings')}
@@ -224,13 +226,13 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
                     Settings
                   </button>
                 </li>
-                <li>
+                <li key="help">
                   <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center">
                     <HelpCircle className="w-4 h-4 mr-2" />
                     Help & Support
                   </button>
                 </li>
-                <li className="border-t border-gray-200 dark:border-gray-800">
+                <li key="logout" className="border-t border-gray-200 dark:border-gray-800">
                   <button 
                     className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center text-red-600"
                     onClick={logout}

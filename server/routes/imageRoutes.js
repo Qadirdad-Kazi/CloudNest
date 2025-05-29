@@ -30,23 +30,49 @@ console.log('Cloudinary configuration:', {
   api_secret: cloudinary.config().api_secret ? 'Set (hidden)' : 'Not set'
 });
 
-// Configure multer for temporary file storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../temp-uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
+// Sanitize filename to prevent path traversal attacks
+const sanitizeFilename = (filename) => {
+  return filename
+    .replace(/[^a-zA-Z0-9_.-]/g, '_') // Replace any character that's not alphanumeric, underscore, dot, or hyphen
+    .replace(/\.\./g, '_'); // Replace double dots to prevent directory traversal
+};
 
+// Configure multer for temporary file storage with enhanced security
 const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const uploadDir = path.join(__dirname, '../temp-uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+      // Sanitize filename and use timestamp to ensure uniqueness
+      const sanitizedName = sanitizeFilename(file.originalname);
+      cb(null, `${Date.now()}-${sanitizedName}`);
+    }
+  }),
+  limits: { 
+    fileSize: process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 5 * 1024 * 1024, // 5MB limit for images
+    files: 1 // Allow only one file per request
+  },
+  fileFilter: function (req, file, cb) {
+    // Strict content type validation for images
+    const allowedTypes = [
+      'image/jpeg', 
+      'image/png', 
+      'image/gif', 
+      'image/webp', 
+      'image/svg+xml'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid image type. Allowed types: ${allowedTypes.join(', ')}`));
+    }
+  }
 });
 
 // Upload image to Cloudinary - authentication required
@@ -80,68 +106,25 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
   }
 });
 
-// Public upload endpoint for testing purposes
-router.post('/upload-public', upload.single('file'), async (req, res) => {
+// Delete image from Cloudinary
+router.delete('/:publicId', authenticate, async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    // Get the file path
-    const filePath = req.file.path;
-    console.log('File uploaded to temp location:', filePath);
+    const { publicId } = req.params;
     
-    try {
-      // Upload to Cloudinary
-      console.log('Attempting to upload to Cloudinary...');
-      const result = await cloudinary.uploader.upload(filePath, {
-        folder: 'CloudNest',
-        resource_type: 'auto'
-      });
-      
-      console.log('Cloudinary upload successful:', result.secure_url);
-      
-      // Delete the temporary file
-      fs.unlinkSync(filePath);
-      
-      // Return the Cloudinary URL
-      return res.json({ 
-        url: result.secure_url,
-        public_id: result.public_id,
-        resource_type: result.resource_type
-      });
-    } catch (cloudinaryError) {
-      console.error('Cloudinary upload error:', cloudinaryError);
-      
-      // If Cloudinary fails, create a local URL for the file
-      const localUrl = `/uploads/images/${path.basename(filePath)}`;
-      
-      // Move the file to a permanent location
-      const targetDir = path.join(process.cwd(), 'uploads/images');
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-      }
-      
-      const targetPath = path.join(targetDir, path.basename(filePath));
-      fs.copyFileSync(filePath, targetPath);
-      fs.unlinkSync(filePath); // Remove the temp file
-      
-      console.log('Fallback to local storage:', localUrl);
-      
-      // Return the local URL
-      return res.json({ 
-        url: localUrl,
-        public_id: path.basename(filePath),
-        resource_type: 'image'
-      });
+    // Ensure the user has permission to delete this image
+    // Add your authorization logic here
+    
+    // Delete from Cloudinary
+    const result = await cloudinary.uploader.destroy(publicId);
+    
+    if (result.result === 'ok') {
+      res.json({ message: 'Image deleted successfully' });
+    } else {
+      res.status(400).json({ error: 'Failed to delete image' });
     }
   } catch (error) {
-    console.error('Server error in upload-public:', error);
-    res.status(500).json({ 
-      error: 'Failed to upload image', 
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    console.error('Error deleting from Cloudinary:', error);
+    res.status(500).json({ error: 'Failed to delete image' });
   }
 });
 

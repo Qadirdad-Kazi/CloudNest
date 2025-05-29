@@ -31,41 +31,119 @@ export const API_CONFIG = {
 };
 
 // API endpoints
-export const API_ENDPOINTS = {
+// Define types for API endpoints to ensure type safety
+export type ApiEndpoints = {
   AUTH: {
-    LOGIN: '/auth/login',
-    REGISTER: '/auth/register',
-    LOGOUT: '/auth/logout',
-    REFRESH: '/auth/refresh'
+    LOGIN: string;
+    REGISTER: string;
+    LOGOUT: string;
+    REFRESH: string;
+    VERIFY: string;
+    FORGOT_PASSWORD: string;
+    RESET_PASSWORD: string;
+  };
+  FILES: {
+    LIST: string;
+    UPLOAD: string;
+    DOWNLOAD: string;
+    SHARE: string;
+    STAR: string;
+    RECENT: string;
+    TRASH: string;
+    EMPTY_TRASH: string;
+    RESTORE: string;
+    MOVE_TO_TRASH: string;
+    DELETE: string;
+    UPDATE: string; // Added UPDATE property to match implementation
+  };
+  FEEDBACK: {
+    SUGGESTIONS: string;
+    ADMIN_SUGGESTIONS: string;
+  };
+  ADMIN: {
+    DASHBOARD: string;
+    USERS: string;
+    STORAGE_ANALYTICS: string;
+    ACTIVITY_ANALYTICS: string;
+    SYSTEM_HEALTH: string;
+    SYSTEM_METRICS: string;
+  };
+  FOLDERS: {
+    CREATE: string;
+    DELETE: string;
+    LIST: string;
+  };
+  SHARE_LINKS: string;
+  DOCUMENTS: {
+    UPLOAD: string;
+    GET: string;
+  };
+  USERS: {
+    PROFILE: string;
+    AVATAR: string;
+    STORAGE: string;
+  };
+  NOTIFICATIONS: {
+    LIST: string;
+    UNREAD: string;
+    MARK_READ: string;
+  };
+};
+
+export const API_ENDPOINTS: ApiEndpoints = {
+  AUTH: {
+    LOGIN: `${API_CONFIG.BASE_URL}/auth/login`,
+    REGISTER: `${API_CONFIG.BASE_URL}/auth/register`,
+    LOGOUT: `${API_CONFIG.BASE_URL}/auth/logout`,
+    REFRESH: `${API_CONFIG.BASE_URL}/auth/refresh`,
+    VERIFY: `${API_CONFIG.BASE_URL}/auth/verify`,
+    FORGOT_PASSWORD: `${API_CONFIG.BASE_URL}/auth/forgot-password`,
+    RESET_PASSWORD: `${API_CONFIG.BASE_URL}/auth/reset-password`,
   },
   FILES: {
-    LIST: '/files',
-    UPLOAD: '/files/upload',
-    DELETE: '/files/delete',
-    STAR: '/files/star',
-    SHARE: '/files/share',
-    RECENT: '/files/recent',
-    TRASH: '/files/trash',
-    RESTORE: '/files/restore',
-    EMPTY_TRASH: '/files/trash/empty'
+    LIST: `${API_CONFIG.BASE_URL}/files`,
+    UPLOAD: `${API_CONFIG.BASE_URL}/files/upload`,
+    DOWNLOAD: `${API_CONFIG.BASE_URL}/files/download`,
+    SHARE: `${API_CONFIG.BASE_URL}/files/share`,
+    STAR: `${API_CONFIG.BASE_URL}/files/star`,
+    RECENT: `${API_CONFIG.BASE_URL}/files/recent`,
+    TRASH: `${API_CONFIG.BASE_URL}/files/trash`,
+    EMPTY_TRASH: `${API_CONFIG.BASE_URL}/files/trash/empty`,
+    RESTORE: `${API_CONFIG.BASE_URL}/files/restore`,
+    MOVE_TO_TRASH: `${API_CONFIG.BASE_URL}/files/trash`, // Endpoint for moving files to trash
+    DELETE: `${API_CONFIG.BASE_URL}/files`, // Endpoint for deleting files
+    UPDATE: `${API_CONFIG.BASE_URL}/files` // Endpoint for updating files
+  },
+  FEEDBACK: {
+    SUGGESTIONS: `${API_CONFIG.BASE_URL}/feedback/suggestions`,
+    ADMIN_SUGGESTIONS: `${API_CONFIG.BASE_URL}/feedback/admin/suggestions`,
+  },
+  ADMIN: {
+    DASHBOARD: `${API_CONFIG.BASE_URL}/admin/dashboard`,
+    USERS: `${API_CONFIG.BASE_URL}/admin/users`,
+    STORAGE_ANALYTICS: `${API_CONFIG.BASE_URL}/admin/analytics/storage`,
+    ACTIVITY_ANALYTICS: `${API_CONFIG.BASE_URL}/admin/analytics/activity`,
+    SYSTEM_HEALTH: `${API_CONFIG.BASE_URL}/admin/system/health`,
+    SYSTEM_METRICS: `${API_CONFIG.BASE_URL}/admin/system/metrics`,
   },
   FOLDERS: {
-    CREATE: '/folders',
-    DELETE: '/folders/delete',
-    LIST: '/folders'
+    CREATE: `${API_CONFIG.BASE_URL}/folders`,
+    DELETE: `${API_CONFIG.BASE_URL}/folders/delete`,
+    LIST: `${API_CONFIG.BASE_URL}/folders`
   },
-  SHARE_LINKS: '/share-links',
+  SHARE_LINKS: `${API_CONFIG.BASE_URL}/share-links`,
   DOCUMENTS: {
-    UPLOAD: '/documents/upload',
-    GET: '/documents'
+    UPLOAD: `${API_CONFIG.BASE_URL}/documents/upload`,
+    GET: `${API_CONFIG.BASE_URL}/documents`
   },
   USERS: {
-    PROFILE: '/users/profile',
-    AVATAR: '/users/avatar'
+    PROFILE: `${API_CONFIG.BASE_URL}/users/profile`,
+    AVATAR: `${API_CONFIG.BASE_URL}/users/avatar`,
+    STORAGE: `${API_CONFIG.BASE_URL}/users/storage`
   },
   NOTIFICATIONS: {
-    LIST: '/notifications',
-    UNREAD: '/notifications/unread',
-    MARK_READ: '/notifications/read'
+    LIST: `${API_CONFIG.BASE_URL}/notifications`,
+    UNREAD: `${API_CONFIG.BASE_URL}/notifications/unread`,
+    MARK_READ: `${API_CONFIG.BASE_URL}/notifications/read`
   }
 };

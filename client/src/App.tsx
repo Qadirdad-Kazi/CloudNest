@@ -15,6 +15,8 @@ import Recent from './pages/Recent';
 import Trash from './pages/Trash';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import Suggestions from './pages/Suggestions';
+import AdminSuggestions from './pages/AdminSuggestions';
 
 // Loading component
 const LoadingSpinner: React.FC = () => (
@@ -75,9 +77,11 @@ const App: React.FC = () => {
               <Route path="/trash" element={<ProtectedRoute><Trash /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/suggestions" element={<ProtectedRoute><Suggestions /></ProtectedRoute>} />
               
               {/* Admin routes */}
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              <Route path="/admin/suggestions" element={<AdminRoute><AdminSuggestions /></AdminRoute>} />
               
               {/* Catch all route */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

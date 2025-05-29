@@ -214,19 +214,19 @@ const FileCard: React.FC<FileCardProps> = ({
               <div className="flex flex-col space-y-2">
                 {!isInTrash && (
                   <>
-                    <button onClick={() => { setShowMenu(false); onStar(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                    <button key={`star-${file.id}`} onClick={() => { setShowMenu(false); onStar(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
                       <Star className="w-4 h-4" />
                     </button>
-                    <button onClick={() => { setShowMenu(false); onRename(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                    <button key={`rename-${file.id}`} onClick={() => { setShowMenu(false); onRename(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button onClick={() => { setShowMenu(false); onShare(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                    <button key={`share-${file.id}`} onClick={() => { setShowMenu(false); onShare(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
                       <Share2 className="w-4 h-4" />
                     </button>
-                    <button onClick={(e) => { setShowMenu(false); handleDownload(e); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                    <button key={`download-${file.id}`} onClick={(e) => { setShowMenu(false); handleDownload(e); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
                       <Download className="w-4 h-4" />
                     </button>
-                    <button onClick={() => { setShowMenu(false); onDelete(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-red-500">
+                    <button key={`delete-${file.id}`} onClick={() => { setShowMenu(false); onDelete(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-red-500">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </>
@@ -235,6 +235,7 @@ const FileCard: React.FC<FileCardProps> = ({
                 {isInTrash && (
                   <>
                     <button 
+                      key={`restore-${file.id}`}
                       onClick={() => { 
                         setShowMenu(false); 
                         if (onRestore) onRestore(file); 

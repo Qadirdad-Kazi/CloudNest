@@ -160,9 +160,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         } catch (apiError) {
           console.warn('API endpoint not available, using local notification');
           
-          // Create a mock notification as fallback
+          // Create a mock notification as fallback with a guaranteed unique ID
           const mockNotification: Notification = {
-            id: `local-${Date.now()}`,
+            id: `local-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
             read: false,
             createdAt: new Date().toISOString(),
             type: notification.type,

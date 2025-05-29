@@ -5,10 +5,9 @@ import Sidebar from '../components/layout/Sidebar';
 import FileCard from '../components/file/FileCard';
 import { useFiles } from '../context/FileContext';
 import { FileItem } from '../types';
-// import { fileService } from '../services/fileService';
 
 const Trash: React.FC = () => {
-  const { deleteFile } = useFiles();
+  const { deleteFile, restoreFromTrash, emptyTrash, getTrashFiles } = useFiles();
   const [trashedFiles, setTrashedFiles] = useState<FileItem[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [darkMode, setDarkMode] = useState(false);
@@ -23,36 +22,8 @@ const Trash: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      // Use mock data for now since the API might not be fully implemented
-      // const files = await fileService.getTrashFiles();
-      const files: FileItem[] = [
-        {
-          id: '3',
-          name: 'Deleted Document.pdf',
-          type: 'pdf',
-          size: 1024 * 1024 * 1.5, // 1.5MB
-          path: '/Deleted Document.pdf',
-          owner: 'user123',
-          shared: false,
-          starred: false,
-          tags: ['work'],
-          createdAt: new Date(Date.now() - 1296000000).toISOString(), // 15 days ago
-          modifiedAt: new Date(Date.now() - 864000000).toISOString() // 10 days ago
-        },
-        {
-          id: '4',
-          name: 'Old Image.jpg',
-          type: 'jpg',
-          size: 1024 * 768, // 768KB
-          path: '/Old Image.jpg',
-          owner: 'user123',
-          shared: false,
-          starred: false,
-          tags: [],
-          createdAt: new Date(Date.now() - 2592000000).toISOString(), // 30 days ago
-          modifiedAt: new Date(Date.now() - 1728000000).toISOString() // 20 days ago
-        }
-      ];
+      // Fetch trash files from the server using the getTrashFiles function from FileContext
+      const files = await getTrashFiles();
       setTrashedFiles(files);
     } catch (error) {
       console.error('Error loading trashed files:', error);
@@ -71,36 +42,8 @@ const Trash: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      // Use mock data for now since the API might not be fully implemented
-      // const files = await fileService.getTrashFiles();
-      const files: FileItem[] = [
-        {
-          id: '3',
-          name: 'Deleted Document.pdf',
-          type: 'pdf',
-          size: 1024 * 1024 * 1.5, // 1.5MB
-          path: '/Deleted Document.pdf',
-          owner: 'user123',
-          shared: false,
-          starred: false,
-          tags: ['work'],
-          createdAt: new Date(Date.now() - 1296000000).toISOString(), // 15 days ago
-          modifiedAt: new Date(Date.now() - 864000000).toISOString() // 10 days ago
-        },
-        {
-          id: '4',
-          name: 'Old Image.jpg',
-          type: 'jpg',
-          size: 1024 * 768, // 768KB
-          path: '/Old Image.jpg',
-          owner: 'user123',
-          shared: false,
-          starred: false,
-          tags: [],
-          createdAt: new Date(Date.now() - 2592000000).toISOString(), // 30 days ago
-          modifiedAt: new Date(Date.now() - 1728000000).toISOString() // 20 days ago
-        }
-      ];
+      // Fetch all trash files and filter them client-side
+      const files = await getTrashFiles();
       const filteredFiles = files.filter(file => 
         file.name.toLowerCase().includes(query.toLowerCase())
       );
@@ -115,11 +58,16 @@ const Trash: React.FC = () => {
 
   const handleRestore = async (file: FileItem) => {
     try {
-      // Mock restore functionality since fileService is commented out
-      // await fileService.restoreFromTrash(file.id);
+      setIsLoading(true);
+      // Use the restoreFromTrash function from FileContext
+      await restoreFromTrash(file.id);
+      // Update UI by removing the restored file from the list
       setTrashedFiles(prev => prev.filter(f => f.id !== file.id));
     } catch (error) {
       console.error('Error restoring file:', error);
+      setError('Failed to restore file');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -134,11 +82,16 @@ const Trash: React.FC = () => {
 
   const handleEmptyTrash = async () => {
     try {
-      // Mock empty trash functionality since fileService is commented out
-      // await fileService.emptyTrash();
+      setIsLoading(true);
+      // Use the emptyTrash function from FileContext
+      await emptyTrash();
+      // Clear the trash files list in the UI
       setTrashedFiles([]);
     } catch (error) {
       console.error('Error emptying trash:', error);
+      setError('Failed to empty trash');
+    } finally {
+      setIsLoading(false);
     }
   };
 

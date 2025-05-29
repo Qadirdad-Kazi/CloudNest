@@ -7,6 +7,8 @@ import { promises as fs } from 'fs';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
+import monitoringService from './services/monitoringService.js';
+import { errorLogger } from './middleware/activityLogger.js';
 
 import authRoutes from './routes/authRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
@@ -15,6 +17,8 @@ import shareLinkRoutes from './routes/shareLinkRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import imageRoutes from './routes/imageRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
+import feedbackRoutes from './routes/feedbackRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 
 dotenv.config();
 
@@ -125,6 +129,8 @@ app.use('/api/share-links', shareLinkRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
