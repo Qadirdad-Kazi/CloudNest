@@ -5,6 +5,8 @@ import { promises as fs } from 'fs';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import cloudinary from '../config/cloudinary.js';
+import { Readable } from 'stream';
 
 // ES modules fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -14,15 +16,8 @@ const __dirname = dirname(__filename);
 const uploadsDir = path.join(__dirname, '../uploads/avatars');
 fs.mkdir(uploadsDir, { recursive: true }).catch(console.error);
 
-// Configure multer for avatar uploads
-const storage = multer.diskStorage({
-  destination: uploadsDir,
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
+// Configure multer for memory storage
+const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
@@ -82,37 +77,32 @@ export const updateProfile = async (req, res) => {
 
 // Update user avatar
 export const updateAvatar = async (req, res) => {
-  upload(req, res, async (err) => {
-    if (err) {
-      return res.status(400).json({ message: err.message });
+  try {
+    const { avatarId } = req.body;
+    
+    // Validate avatar ID (you can add more validation if needed)
+    if (!avatarId || typeof avatarId !== 'string') {
+      return res.status(400).json({ message: 'Invalid avatar ID' });
     }
 
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+    // Update user with new avatar ID
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { avatar: avatarId },
+      { new: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    try {
-      // Delete old avatar if exists
-      const user = await User.findById(req.user._id);
-      if (user.avatar) {
-        const oldAvatarPath = path.join(uploadsDir, path.basename(user.avatar));
-        await fs.unlink(oldAvatarPath).catch(() => {});
-      }
-
-      // Update user with new avatar path
-      const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-      const updatedUser = await User.findByIdAndUpdate(
-        req.user._id,
-        { avatar: avatarUrl },
-        { new: true }
-      ).select('-password');
-
-      res.json({ avatarUrl });
-    } catch (error) {
-      console.error('Error updating avatar:', error);
-      res.status(500).json({ message: 'Failed to update avatar' });
-    }
-  });
+    res.json({ 
+      user: updatedUser.toPublicJSON()
+    });
+  } catch (error) {
+    console.error('Error updating avatar:', error);
+    res.status(500).json({ message: 'Failed to update avatar' });
+  }
 };
 
 // Get user settings

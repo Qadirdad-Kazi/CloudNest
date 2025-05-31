@@ -1,15 +1,15 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: 'http://localhost:5001/api',
-  timeout: 120000, // 2 minutes
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
+  timeout: 30000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Add a request interceptor
+// Add request interceptor
 instance.interceptors.request.use(
   (config) => {
     // Get token from localStorage
@@ -24,22 +24,14 @@ instance.interceptors.request.use(
   }
 );
 
-// Add a response interceptor
+// Add response interceptor
 instance.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response) {
-      // Handle 401 Unauthorized errors
-      if (error.response.status === 401) {
-        // Only redirect to login if we're not already on the login page
-        const currentPath = window.location.pathname;
-        if (currentPath !== '/login' && currentPath !== '/register') {
-          localStorage.removeItem('token');
-          window.location.href = '/login';
-        }
-      }
-      // Handle other error responses
-      return Promise.reject(error.response.data);
+    if (error.response?.status === 401) {
+      // Clear token and redirect to login
+      localStorage.removeItem('token');
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

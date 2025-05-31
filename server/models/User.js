@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema({
   },
   avatar: {
     type: String,
-    default: ''
+    default: 'avatar1' // Default avatar ID
   },
   role: {
     type: String,

@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { User } from '../contexts/AuthContext';
 import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
+import AvatarSelector, { avatars } from '../components/AvatarSelector';
 
 // Extended user interface for profile page
 interface ExtendedUser extends User {
@@ -23,12 +24,13 @@ const Profile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAvatarSelectorOpen, setIsAvatarSelectorOpen] = useState(false);
   const [profileData, setProfileData] = useState({
     name: user?.name || '',
     email: user?.email || '',
     phone: (user as ExtendedUser)?.phone || '',
     address: (user as ExtendedUser)?.address || '',
-    avatar: (user as ExtendedUser)?.avatar || ''
+    avatar: (user as ExtendedUser)?.avatar || 'avatar1'
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,28 +41,36 @@ const Profile: React.FC = () => {
     }));
   };
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('avatar', file);
-
+  const handleAvatarChange = async (avatarId: string) => {
     try {
       setLoading(true);
-      const response = await axios.post('/api/users/avatar', formData);
+      setError(null);
+      
+      const response = await axios.put('/api/users/avatar', { avatarId });
+      
       setProfileData(prev => ({
         ...prev,
-        avatar: response.data.avatarUrl
+        avatar: avatarId
       }));
-      // Cast to ensure TypeScript knows we can add avatar property
-      updateUser({ ...user, avatar: response.data.avatarUrl } as Partial<User>);
-    } catch (err) {
-      setError('Failed to upload avatar');
-      console.error('Error uploading avatar:', err);
+      
+      // Update user context with new data
+      if (response.data.user) {
+        updateUser(response.data.user);
+      } else {
+        updateUser({ ...user, avatar: avatarId } as Partial<User>);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to update avatar');
+      console.error('Error updating avatar:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get the current avatar URL
+  const getCurrentAvatarUrl = () => {
+    const currentAvatar = avatars.find(a => a.id === profileData.avatar);
+    return currentAvatar?.url || avatars[0].url;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,20 +117,18 @@ const Profile: React.FC = () => {
               <div className="absolute -bottom-12 left-8">
                 <div className="relative">
                   <img
-                    src={profileData.avatar || '/default-avatar.png'}
+                    src={getCurrentAvatarUrl()}
                     alt="Profile"
-                    className="w-24 h-24 rounded-full border-4 border-white dark:border-gray-800"
+                    className={`w-24 h-24 rounded-full border-4 border-white dark:border-gray-800 ${loading ? 'opacity-50' : ''}`}
                   />
                   {isEditing && (
-                    <label className="absolute bottom-0 right-0 bg-indigo-600 p-2 rounded-full cursor-pointer hover:bg-indigo-700">
+                    <button
+                      onClick={() => setIsAvatarSelectorOpen(true)}
+                      className={`absolute bottom-0 right-0 bg-indigo-600 p-2 rounded-full cursor-pointer hover:bg-indigo-700 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      disabled={loading}
+                    >
                       <Camera className="w-4 h-4 text-white" />
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleAvatarChange}
-                      />
-                    </label>
+                    </button>
                   )}
                 </div>
               </div>
@@ -256,6 +264,13 @@ const Profile: React.FC = () => {
           </div>
         </main>
       </div>
+
+      <AvatarSelector
+        currentAvatar={profileData.avatar}
+        onSelect={handleAvatarChange}
+        isOpen={isAvatarSelectorOpen}
+        onClose={() => setIsAvatarSelectorOpen(false)}
+      />
     </div>
   );
 };

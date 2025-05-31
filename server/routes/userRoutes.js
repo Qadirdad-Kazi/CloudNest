@@ -24,7 +24,7 @@ router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
 
 // Avatar routes
-router.post('/avatar', updateAvatar);
+router.put('/avatar', updateAvatar);
 
 // Settings routes
 router.get('/settings', getSettings);

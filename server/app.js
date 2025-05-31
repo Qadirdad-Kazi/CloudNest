@@ -10,6 +10,9 @@ import monitoringService from './services/monitoringService.js';
 import { errorLogger } from './middleware/activityLogger.js';
 import helmet from 'helmet';
 import { errorHandler } from './middleware/errorHandler';
+import morgan from 'morgan';
+import compression from 'compression';
+import { rateLimiter } from './middleware/rateLimiter.js';
 
 import authRoutes from './routes/authRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
@@ -141,6 +144,17 @@ app.use((req, res, next) => {
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Logging in development
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
+
+// Compression
+app.use(compression());
+
+// Rate limiting
+app.use(rateLimiter);
 
 // Mount API routes
 app.use('/api/auth', authRoutes);

@@ -11,6 +11,8 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import imageRoutes from './routes/imageRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import mongoose from 'mongoose';
+import cloudinary from './config/cloudinary.js';
 
 dotenv.config();
 
@@ -49,6 +51,18 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     await connectDB();
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('MongoDB Connected:', mongoose.connection.host);
+    console.log('Cloudinary Configuration:', {
+      cloud_name: cloudinary.config().cloud_name,
+      api_key: cloudinary.config().api_key ? '✓ Set' : '✗ Not Set',
+      api_secret: cloudinary.config().api_secret ? '✓ Set' : '✗ Not Set'
+    });
+    console.log('Cloudinary configuration:', {
+      cloud_name: cloudinary.config().cloud_name,
+      api_key: cloudinary.config().api_key,
+      api_secret: 'Set (hidden)'
+    });
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
