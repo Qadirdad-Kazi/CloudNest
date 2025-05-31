@@ -12,6 +12,7 @@ import {
   getStorageInfo,
   deleteAccount
 } from '../controllers/userController.js';
+import User from '../models/User.js';
 
 const router = express.Router();
 
@@ -41,5 +42,39 @@ router.get('/storage', getStorageInfo);
 
 // Account deletion
 router.delete('/account', deleteAccount);
+
+// Get user settings
+router.get('/settings', async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('settings');
+    res.json(user.settings || {});
+  } catch (error) {
+    console.error('Error getting user settings:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update user settings
+router.put('/settings', async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Merge existing settings with new settings
+    user.settings = {
+      ...user.settings,
+      ...req.body
+    };
+
+    await user.save();
+    res.json(user.settings);
+  } catch (error) {
+    console.error('Error updating user settings:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 export default router; 

@@ -1,22 +1,21 @@
 import axios from 'axios';
-import { API_CONFIG } from '../config/api';
 
-// Create axios instance with default config
 const instance = axios.create({
-  baseURL: API_CONFIG.BASE_URL,
-  timeout: API_CONFIG.TIMEOUT,
-  withCredentials: true, // Important for cookies
+  baseURL: 'http://localhost:5001/api',
+  timeout: 120000, // 2 minutes
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Add request interceptor
+// Add a request interceptor
 instance.interceptors.request.use(
   (config) => {
-    // Add any request processing here
-    if (config.url && !config.url.startsWith('http')) {
-      config.url = `${API_CONFIG.BASE_URL}${config.url}`;
+    // Get token from localStorage
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -25,15 +24,22 @@ instance.interceptors.request.use(
   }
 );
 
-// Add response interceptor
+// Add a response interceptor
 instance.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized error (e.g., redirect to login)
-      window.location.href = '/login';
+    if (error.response) {
+      // Handle 401 Unauthorized errors
+      if (error.response.status === 401) {
+        // Only redirect to login if we're not already on the login page
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/login' && currentPath !== '/register') {
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+        }
+      }
+      // Handle other error responses
+      return Promise.reject(error.response.data);
     }
     return Promise.reject(error);
   }

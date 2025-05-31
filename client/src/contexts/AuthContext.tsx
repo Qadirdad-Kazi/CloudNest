@@ -59,22 +59,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Check if user is authenticated by making a request to the server
-    const checkAuthStatus = async () => {
+    const verifyAuth = async () => {
       try {
+        console.log('Verifying authentication...');
+        // Only verify if we're not on the login or register page
+        const currentPath = window.location.pathname;
+        if (currentPath === '/login' || currentPath === '/register') {
+          setIsLoading(false);
+          return;
+        }
+        
         const response = await axios.get(API_ENDPOINTS.AUTH.VERIFY);
+        console.log('Auth verification response:', response.data);
         setUser(response.data);
+        setIsAuthenticated(true);
       } catch (error) {
-        console.error('Error checking authentication status:', error);
+        console.error('Auth verification failed:', error);
         setUser(null);
+        setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkAuthStatus();
+    verifyAuth();
   }, []);
 
   const login = async (email: string, password: string) => {

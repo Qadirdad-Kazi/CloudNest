@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { notificationService } from '../services/notificationService';
+import { useAuth } from '../contexts/AuthContext';
 
 export type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
@@ -44,6 +45,7 @@ const NotificationContext = createContext<NotificationContextType>({
 export const useNotifications = () => useContext(NotificationContext);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user: currentUser } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -53,25 +55,33 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Load initial notifications and set up polling for unread count
   useEffect(() => {
-    loadNotifications();
-    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30 seconds
-
-    return () => clearInterval(interval);
-  }, []);
+    if (currentUser) {
+      loadNotifications();
+      const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30 seconds
+      return () => clearInterval(interval);
+    } else {
+      // Clear notifications when not authenticated
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  }, [currentUser]);
 
   const loadNotifications = async (page = 1) => {
+    if (!currentUser) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
       const response = await notificationService.getNotifications(page);
       if (page === 1) {
-        // Ensure we're setting an array
         setNotifications(Array.isArray(response?.notifications) ? response.notifications : []);
       } else {
         setNotifications(prev => {
-          // Ensure prev is always an array
           const prevArray = Array.isArray(prev) ? prev : [];
-          // Ensure response.notifications is always an array
           const newNotifications = Array.isArray(response?.notifications) ? response.notifications : [];
           return [...prevArray, ...newNotifications];
         });

@@ -6,27 +6,71 @@ export const folderService = {
   // Create a new folder
   async createFolder(folderData: { name: string; path: string }): Promise<Folder> {
     try {
+      console.log('Creating folder with data:', folderData);
+      
       const response = await axios.post(API_ENDPOINTS.FOLDERS.CREATE, {
         name: folderData.name,
         path: folderData.path || '/'
       });
+      
+      console.log('Create folder response:', response.data);
+      
+      // Validate the response data
+      if (!response.data || !response.data.id) {
+        throw new Error('Invalid folder data received from server');
+      }
+      
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating folder:', error);
-      throw error;
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        throw new Error(error.response.data.message || 'Failed to create folder');
+      }
+      throw new Error('Failed to create folder');
     }
   },
   
   // Get folders in a directory
   async getFolders(path: string = '/'): Promise<Folder[]> {
     try {
+      console.log('Fetching folders for path:', path);
+      
       const response = await axios.get(API_ENDPOINTS.FOLDERS.LIST, {
         params: { path }
       });
-      return response.data;
-    } catch (error) {
+      
+      console.log('Folders API response:', response.data);
+      
+      // Ensure we always return an array
+      const folders = Array.isArray(response.data) ? response.data : [];
+      
+      // Validate each folder object and ensure it matches the Folder type
+      return folders.map(folder => ({
+        id: folder.id || folder._id,
+        name: folder.name,
+        path: folder.path,
+        owner: folder.owner || folder.userId,
+        shared: folder.shared || false,
+        starred: folder.starred || folder.isStarred || false,
+        inTrash: folder.inTrash || false,
+        tags: folder.tags || [],
+        createdAt: folder.createdAt || new Date().toISOString(),
+        modifiedAt: folder.modifiedAt || folder.updatedAt || new Date().toISOString()
+      }));
+    } catch (error: any) {
       console.error('Error getting folders:', error);
-      throw error;
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        console.error('Error status:', error.response.status);
+        if (error.response.status === 401) {
+          // Handle unauthorized error
+          console.warn('User is not authenticated');
+          return [];
+        }
+      }
+      // Return empty array on error to prevent undefined errors
+      return [];
     }
   },
   
@@ -34,9 +78,12 @@ export const folderService = {
   async deleteFolder(folderId: string): Promise<void> {
     try {
       await axios.delete(`${API_ENDPOINTS.FOLDERS.DELETE}/${folderId}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting folder:', error);
-      throw error;
+      if (error.response) {
+        throw new Error(error.response.data.message || 'Failed to delete folder');
+      }
+      throw new Error('Failed to delete folder');
     }
   },
   
@@ -44,10 +91,19 @@ export const folderService = {
   async renameFolder(folderId: string, newName: string): Promise<Folder> {
     try {
       const response = await axios.patch(`${API_ENDPOINTS.FOLDERS.LIST}/${folderId}/rename`, { newName });
-      return response.data;
-    } catch (error) {
+      
+      // Validate the response data
+      if (!response.data || !response.data.folder) {
+        throw new Error('Invalid response data from server');
+      }
+      
+      return response.data.folder;
+    } catch (error: any) {
       console.error('Error renaming folder:', error);
-      throw error;
+      if (error.response) {
+        throw new Error(error.response.data.message || 'Failed to rename folder');
+      }
+      throw new Error('Failed to rename folder');
     }
   }
 };

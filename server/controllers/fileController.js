@@ -1,38 +1,27 @@
-const File = require('../models/File');
-const path = require('path');
-const fs = require('fs').promises;
-const { v4: uuidv4 } = require('uuid');
+import File from '../models/File.js';
+import mongoose from 'mongoose';
+import cloudinary from '../config/cloudinary.js';
+import { GridFSBucket } from 'mongodb';
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, '../uploads');
-fs.mkdir(uploadsDir, { recursive: true }).catch(console.error);
+// Initialize GridFS bucket
+let bucket;
+mongoose.connection.once('open', () => {
+  bucket = new GridFSBucket(mongoose.connection.db);
+});
 
-// File type categories and their corresponding MIME types
+// File type categories
 const fileCategories = {
   images: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
   documents: [
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'text/plain'
   ],
-  videos: ['video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm'],
-  audio: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/midi'],
-  archives: ['application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed', 'application/x-tar'],
-  code: [
-    'text/javascript',
-    'application/json',
-    'text/html',
-    'text/css',
-    'text/xml',
-    'application/x-httpd-php',
-    'text/x-python',
-    'text/x-java',
-  ]
+  videos: ['video/mp4', 'video/mpeg', 'video/quicktime'],
+  audio: ['audio/mpeg', 'audio/wav', 'audio/ogg'],
+  archives: ['application/zip', 'application/x-rar-compressed'],
+  code: ['text/javascript', 'text/html', 'text/css', 'application/json']
 };
 
 // Get category for a file type
@@ -45,53 +34,80 @@ const getFileCategory = (mimeType) => {
   return 'others';
 };
 
-exports.uploadFile = async (req, res) => {
+export const uploadFile = async (req, res) => {
   try {
-    if (!req.files || Object.keys(req.files).length === 0) {
-      return res.status(400).json({ message: 'No files were uploaded.' });
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const file = req.files.file;
+    const file = req.file;
     const userId = req.user._id;
-    let parentPath = req.body.parentPath || '/';
-    
-    // Determine file category and set appropriate parent path
+    const parentPath = req.body.path || '/';
     const category = getFileCategory(file.mimetype);
-    if (parentPath === '/') {
-      parentPath = `/${category}`;
-      // Create category directory if it doesn't exist
-      await fs.mkdir(path.join(uploadsDir, category), { recursive: true });
+    
+    // Determine storage provider based on file type
+    const isImage = file.mimetype.startsWith('image/');
+    const cloudProvider = isImage ? 'cloudinary' : 'mongodb';
+    let cloudId = '';
+    let url = '';
+
+    if (cloudProvider === 'cloudinary') {
+      // Upload to Cloudinary
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: 'cloudnest', resource_type: 'auto' },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+
+        uploadStream.end(file.buffer);
+      });
+
+      cloudId = result.public_id;
+      url = result.secure_url;
+    } else {
+      // Upload to MongoDB GridFS
+      const filename = `${Date.now()}-${file.originalname}`;
+      const uploadStream = bucket.openUploadStream(filename, {
+        contentType: file.mimetype
+      });
+
+      await new Promise((resolve, reject) => {
+        const bufferStream = require('stream').Readable.from(file.buffer);
+        bufferStream.pipe(uploadStream)
+          .on('error', reject)
+          .on('finish', resolve);
+      });
+
+      cloudId = uploadStream.id.toString();
+      url = `/api/files/download/${cloudId}`;
     }
-
-    // Generate unique filename
-    const fileExt = path.extname(file.name);
-    const uniqueFilename = `${uuidv4()}${fileExt}`;
-    const filePath = path.join(uploadsDir, category, uniqueFilename);
-
-    // Move file to appropriate directory
-    await file.mv(filePath);
 
     // Create file document in MongoDB
-    const fileDoc = new File({
+    const newFile = new File({
       userId,
-      name: file.name,
+      name: file.originalname,
       type: file.mimetype,
       size: file.size,
-      path: path.join(category, uniqueFilename),
+      path: `${parentPath}${file.originalname}`,
       parentPath,
-      category
+      category,
+      cloudProvider,
+      cloudId,
+      url
     });
 
-    await fileDoc.save();
-
-    res.status(201).json(fileDoc);
+    await newFile.save();
+    res.status(201).json(newFile);
   } catch (error) {
     console.error('Error uploading file:', error);
     res.status(500).json({ message: 'Failed to upload file' });
   }
 };
 
-exports.getFiles = async (req, res) => {
+export const getFiles = async (req, res) => {
   try {
     const userId = req.user._id;
     const parentPath = req.query.path || '/';
@@ -102,9 +118,6 @@ exports.getFiles = async (req, res) => {
       isDeleted: false 
     }).sort({ isStarred: -1, name: 1 });
 
-    // Update lastAccessed for each file
-    await Promise.all(files.map(file => file.updateLastAccessed()));
-
     res.json(files);
   } catch (error) {
     console.error('Error getting files:', error);
@@ -112,125 +125,27 @@ exports.getFiles = async (req, res) => {
   }
 };
 
-exports.getRecentFiles = async (req, res) => {
+export const deleteFile = async (req, res) => {
   try {
+    const fileId = req.params.fileId;
     const userId = req.user._id;
-    const days = parseInt(req.query.days) || 7; // Default to last 7 days
+    const permanent = req.query.permanent === 'true';
 
-    const files = await File.find({
-      userId,
-      isDeleted: false,
-      lastAccessed: {
-        $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    const file = await File.findOne({ _id: fileId, userId });
+    if (!file) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    if (permanent) {
+      // Delete from cloud storage
+      if (file.cloudProvider === 'cloudinary') {
+        await cloudinary.uploader.destroy(file.cloudId);
+      } else if (file.cloudProvider === 'mongodb') {
+        await bucket.delete(new mongoose.Types.ObjectId(file.cloudId));
       }
-    })
-    .sort({ lastAccessed: -1 })
-    .limit(100); // Limit to last 100 files
 
-    res.json(files);
-  } catch (error) {
-    console.error('Error getting recent files:', error);
-    res.status(500).json({ message: 'Failed to get recent files' });
-  }
-};
-
-exports.getTrashFiles = async (req, res) => {
-  try {
-    const userId = req.user._id;
-
-    const files = await File.find({
-      userId,
-      isDeleted: true
-    })
-    .sort({ deletedAt: -1 });
-
-    res.json(files);
-  } catch (error) {
-    console.error('Error getting trash files:', error);
-    res.status(500).json({ message: 'Failed to get trash files' });
-  }
-};
-
-exports.moveToTrash = async (req, res) => {
-  try {
-    const fileId = req.params.fileId;
-    const userId = req.user._id;
-
-    const file = await File.findOne({ _id: fileId, userId });
-    if (!file) {
-      return res.status(404).json({ message: 'File not found' });
-    }
-
-    file.isDeleted = true;
-    file.deletedAt = new Date();
-    await file.save();
-
-    res.json({ message: 'File moved to trash successfully' });
-  } catch (error) {
-    console.error('Error moving file to trash:', error);
-    res.status(500).json({ message: 'Failed to move file to trash' });
-  }
-};
-
-exports.restoreFromTrash = async (req, res) => {
-  try {
-    const fileId = req.params.fileId;
-    const userId = req.user._id;
-
-    const file = await File.findOne({ _id: fileId, userId, isDeleted: true });
-    if (!file) {
-      return res.status(404).json({ message: 'File not found in trash' });
-    }
-
-    file.isDeleted = false;
-    file.deletedAt = null;
-    await file.save();
-
-    res.json({ message: 'File restored successfully' });
-  } catch (error) {
-    console.error('Error restoring file:', error);
-    res.status(500).json({ message: 'Failed to restore file' });
-  }
-};
-
-exports.emptyTrash = async (req, res) => {
-  try {
-    const userId = req.user._id;
-
-    // Get all files in trash
-    const trashedFiles = await File.find({ userId, isDeleted: true });
-
-    // Delete files from filesystem
-    await Promise.all(trashedFiles.map(file => 
-      fs.unlink(path.join(uploadsDir, file.path))
-    ));
-
-    // Delete files from database
-    await File.deleteMany({ userId, isDeleted: true });
-
-    res.json({ message: 'Trash emptied successfully' });
-  } catch (error) {
-    console.error('Error emptying trash:', error);
-    res.status(500).json({ message: 'Failed to empty trash' });
-  }
-};
-
-exports.deleteFile = async (req, res) => {
-  try {
-    const fileId = req.params.fileId;
-    const userId = req.user._id;
-    const skipTrash = req.query.skipTrash === 'true';
-
-    const file = await File.findOne({ _id: fileId, userId });
-    if (!file) {
-      return res.status(404).json({ message: 'File not found' });
-    }
-
-    if (skipTrash) {
-      // Delete file from filesystem
-      await fs.unlink(path.join(uploadsDir, file.path));
       // Delete file document
-      await file.remove();
+      await file.deleteOne();
       res.json({ message: 'File permanently deleted' });
     } else {
       // Move to trash
@@ -245,7 +160,7 @@ exports.deleteFile = async (req, res) => {
   }
 };
 
-exports.starFile = async (req, res) => {
+export const downloadFile = async (req, res) => {
   try {
     const fileId = req.params.fileId;
     const userId = req.user._id;
@@ -255,12 +170,18 @@ exports.starFile = async (req, res) => {
       return res.status(404).json({ message: 'File not found' });
     }
 
-    file.isStarred = !file.isStarred;
-    await file.save();
-
-    res.json(file);
+    if (file.cloudProvider === 'cloudinary') {
+      // Redirect to Cloudinary URL
+      res.redirect(file.url);
+    } else {
+      // Stream from GridFS
+      const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(file.cloudId));
+      res.set('Content-Type', file.type);
+      res.set('Content-Disposition', `attachment; filename="${file.name}"`);
+      downloadStream.pipe(res);
+    }
   } catch (error) {
-    console.error('Error starring file:', error);
-    res.status(500).json({ message: 'Failed to star file' });
+    console.error('Error downloading file:', error);
+    res.status(500).json({ message: 'Failed to download file' });
   }
 }; 

@@ -305,52 +305,50 @@ const Dashboard: React.FC = () => {
                 </div>
               ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {searchResults.map(item => (
-                    <div key={item.id}>
-                      {'type' in item ? (
-                        <FileCard 
-                          key={item.id}
-                          file={item}
-                          selected={selectedItems.some(selected => selected.id === item.id)}
-                          onSelect={toggleSelect}
-                          onStar={starItem}
-                          onRename={(file) => {
-                            setItemToRename(file);
-                            setNewName(file.name);
-                            setShowRenameDialog(true);
-                          }}
-                          onShare={(file) => {
-                            setItemToShare(file);
-                            setShareLink(null);
-                            setShowShareModal(true);
-                          }}
-                          onDelete={(file) => deleteItems([file])}
-                          onDownload={() => {}}
-                          onClick={handleFileClick}
-                        />
-                      ) : (
-                        <FolderCard 
-                          key={item.id}
-                          folder={item}
-                          selected={selectedItems.some(selected => selected.id === item.id)}
-                          onSelect={toggleSelect}
-                          onStar={starItem}
-                          onRename={(folder) => {
-                            setItemToRename(folder);
-                            setNewName(folder.name);
-                            setShowRenameDialog(true);
-                          }}
-                          onShare={(folder) => {
-                            setItemToShare(folder);
-                            setShareLink(null);
-                            setShowShareModal(true);
-                          }}
-                          onDelete={(folder) => deleteItems([folder])}
-                          onClick={handleFolderClick}
-                        />
-                      )}
-                    </div>
-                  ))}
+                  {searchResults.map(item => 
+                    'type' in item ? (
+                      <FileCard 
+                        key={`file-${item.id}`}
+                        file={item}
+                        selected={selectedItems.some(selected => selected.id === item.id)}
+                        onSelect={toggleSelect}
+                        onStar={starItem}
+                        onRename={(file) => {
+                          setItemToRename(file);
+                          setNewName(file.name);
+                          setShowRenameDialog(true);
+                        }}
+                        onShare={(file) => {
+                          setItemToShare(file);
+                          setShareLink(null);
+                          setShowShareModal(true);
+                        }}
+                        onDelete={(file) => deleteItems([file])}
+                        onDownload={() => {}}
+                        onClick={handleFileClick}
+                      />
+                    ) : (
+                      <FolderCard 
+                        key={`folder-${item.id}`}
+                        folder={item}
+                        selected={selectedItems.some(selected => selected.id === item.id)}
+                        onSelect={toggleSelect}
+                        onStar={starItem}
+                        onRename={(folder) => {
+                          setItemToRename(folder);
+                          setNewName(folder.name);
+                          setShowRenameDialog(true);
+                        }}
+                        onShare={(folder) => {
+                          setItemToShare(folder);
+                          setShareLink(null);
+                          setShowShareModal(true);
+                        }}
+                        onDelete={(folder) => deleteItems([folder])}
+                        onClick={handleFolderClick}
+                      />
+                    )
+                  )}
                 </div>
               ) : (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -412,52 +410,48 @@ const Dashboard: React.FC = () => {
               ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {folders.map(folder => (
-                    <div key={folder.id}>
-                      <FolderCard 
-                        key={folder.id}
-                        folder={folder}
-                        selected={selectedItems.some(item => item.id === folder.id)}
-                        onSelect={toggleSelect}
-                        onStar={starItem}
-                        onRename={(folder) => {
-                          setItemToRename(folder);
-                          setNewName(folder.name);
-                          setShowRenameDialog(true);
-                        }}
-                        onShare={(folder) => {
-                          setItemToShare(folder);
-                          setShareLink(null);
-                          setShowShareModal(true);
-                        }}
-                        onDelete={(folder) => deleteItems([folder])}
-                        onClick={handleFolderClick}
-                      />
-                    </div>
+                    <FolderCard 
+                      key={`folder-${folder.id}`}
+                      folder={folder}
+                      selected={selectedItems.some(item => item.id === folder.id)}
+                      onSelect={toggleSelect}
+                      onStar={starItem}
+                      onRename={(folder) => {
+                        setItemToRename(folder);
+                        setNewName(folder.name);
+                        setShowRenameDialog(true);
+                      }}
+                      onShare={(folder) => {
+                        setItemToShare(folder);
+                        setShareLink(null);
+                        setShowShareModal(true);
+                      }}
+                      onDelete={(folder) => deleteItems([folder])}
+                      onClick={handleFolderClick}
+                    />
                   ))}
                   
                   {files.map(file => (
-                    <div key={file.id}>
-                      <FileCard 
-                        key={file.id}
-                        file={file}
-                        selected={selectedItems.some(item => item.id === file.id)}
-                        onSelect={toggleSelect}
-                        onStar={starItem}
-                        onRename={(file) => {
-                          setItemToRename(file);
-                          setNewName(file.name);
-                          setShowRenameDialog(true);
-                        }}
-                        onShare={(file) => {
-                          setItemToShare(file);
-                          setShareLink(null);
-                          setShowShareModal(true);
-                        }}
-                        onDelete={(file) => deleteItems([file])}
-                        onDownload={() => {}}
-                        onClick={handleFileClick}
-                      />
-                    </div>
+                    <FileCard 
+                      key={`file-${file.id}`}
+                      file={file}
+                      selected={selectedItems.some(item => item.id === file.id)}
+                      onSelect={toggleSelect}
+                      onStar={starItem}
+                      onRename={(file) => {
+                        setItemToRename(file);
+                        setNewName(file.name);
+                        setShowRenameDialog(true);
+                      }}
+                      onShare={(file) => {
+                        setItemToShare(file);
+                        setShareLink(null);
+                        setShowShareModal(true);
+                      }}
+                      onDelete={(file) => deleteItems([file])}
+                      onDownload={() => {}}
+                      onClick={handleFileClick}
+                    />
                   ))}
                 </div>
               ) : (

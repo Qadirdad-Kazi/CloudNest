@@ -30,10 +30,6 @@ const folderSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
-  lastAccessed: {
-    type: Date,
-    default: Date.now,
-  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -41,8 +37,14 @@ const folderSchema = new mongoose.Schema({
   modifiedAt: {
     type: Date,
     default: Date.now,
-  },
+  }
 });
+
+// Indexes for faster queries
+folderSchema.index({ userId: 1, parentPath: 1 });
+folderSchema.index({ userId: 1, path: 1 }, { unique: true });
+folderSchema.index({ userId: 1, isStarred: 1 });
+folderSchema.index({ userId: 1, isDeleted: 1 });
 
 // Update lastAccessed timestamp when folder is accessed
 folderSchema.methods.updateLastAccessed = function() {
@@ -50,4 +52,6 @@ folderSchema.methods.updateLastAccessed = function() {
   return this.save();
 };
 
-export default mongoose.model('Folder', folderSchema);
+const Folder = mongoose.model('Folder', folderSchema);
+
+export default Folder;

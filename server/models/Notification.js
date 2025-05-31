@@ -20,6 +20,7 @@ const notificationSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  progress: Number,
   relatedItemId: {
     type: String,
     required: false,

@@ -123,8 +123,15 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Load files and folders when path changes
   useEffect(() => {
-    loadFiles();
-  }, [currentPath]);
+    // Only load files if user is authenticated
+    if (currentUser) {
+      loadFiles();
+    } else {
+      // Clear files and folders when not authenticated
+      setFiles([]);
+      setFolders([]);
+    }
+  }, [currentPath, currentUser]);
 
   // Create a new folder
   const createFolder = async (name: string): Promise<void> => {
@@ -132,9 +139,24 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(true);
       setError(null);
       
+      console.log('Creating folder:', { name, path: currentPath });
+      
       const newFolder = await folderService.createFolder({ name, path: currentPath });
       
-      setFolders(prev => [...prev, newFolder]);
+      console.log('New folder created:', newFolder);
+      
+      // Update folders state with the new folder
+      setFolders(prev => {
+        // Make sure we don't add duplicates
+        const exists = prev.some(folder => folder.id === newFolder.id);
+        if (exists) {
+          return prev;
+        }
+        return [...prev, newFolder];
+      });
+      
+      // Reload the current directory to ensure consistency
+      await loadFiles(currentPath);
       
       addNotification({
         type: 'success',
@@ -395,20 +417,42 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Load files and folders for the current path
   const loadFiles = async (path: string = currentPath) => {
+    // Don't make API calls if not authenticated
+    if (!currentUser) {
+      setFiles([]);
+      setFolders([]);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
+      
+      console.log('Loading files and folders for path:', path);
       
       const [filesResponse, foldersResponse] = await Promise.all([
         fileService.getFiles(path),
         folderService.getFolders(path)
       ]);
       
-      setFiles(filesResponse);
-      setFolders(foldersResponse);
+      console.log('Files response:', filesResponse);
+      console.log('Folders response:', foldersResponse);
+      
+      // Ensure we have arrays before setting state
+      const validFiles = Array.isArray(filesResponse) ? filesResponse : [];
+      const validFolders = Array.isArray(foldersResponse) ? foldersResponse : [];
+      
+      // Update state with the fetched data
+      setFiles(validFiles);
+      setFolders(validFolders);
+      
+      console.log('Updated state - Files:', validFiles.length, 'Folders:', validFolders.length);
     } catch (error) {
       console.error('Error loading files and folders:', error);
       setError('Failed to load files and folders');
+      // Set empty arrays on error to prevent stale data
+      setFiles([]);
+      setFolders([]);
     } finally {
       setIsLoading(false);
     }
