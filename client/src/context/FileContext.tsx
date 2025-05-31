@@ -78,7 +78,7 @@ export const useFiles = () => useContext(FileContext);
 
 // Provider component
 export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user: currentUser } = useAuth(); // Renamed to currentUser to avoid unused variable warning
+  const { user: currentUser, getStorageInfo } = useAuth();
   const { addNotification } = useNotifications();
   
   // State variables
@@ -109,20 +109,41 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const breadcrumbs = getBreadcrumbs(currentPath);
 
+  // Function to update storage info
+  const updateStorageInfo = async () => {
+    try {
+      const info = await getStorageInfo();
+      setStorageUsed(info.storageUsed);
+    } catch (error) {
+      console.error('Error updating storage info:', error);
+    }
+  };
+
+  // Function to refresh files and folders
+  const refreshFiles = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const [newFiles, newFolders] = await Promise.all([
+        fileService.getFiles(currentPath),
+        folderService.getFolders(currentPath)
+      ]);
+      
+      setFiles(newFiles);
+      setFolders(newFolders);
+    } catch (error) {
+      console.error('Error refreshing files:', error);
+      setError('Failed to refresh files');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Calculate storage used
   useEffect(() => {
-    const totalSize = files.reduce((acc, file) => acc + file.size, 0);
-    setStorageUsed(totalSize);
-
-    // Check if storage is almost full (90% or more)
-    if (totalSize >= storageLimit * 0.9) {
-      addNotification({
-        type: 'warning',
-        title: 'Storage Almost Full',
-        message: 'You are running out of storage space. Consider upgrading your plan or deleting unnecessary files.',
-      });
-    }
-  }, [files, addNotification]);
+    updateStorageInfo();
+  }, [files]);
 
   // Load files and folders when path changes
   useEffect(() => {
@@ -177,79 +198,49 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Upload a file
-  const uploadFile = async (file: File): Promise<void> => {
+  // Upload file with storage update
+  const uploadFile = async (file: File) => {
     try {
-      setIsLoading(true);
-      setError(null);
-      setUploadProgress(0);
-      
-      console.log(`Uploading file to path: "${currentPath}"`);
-      
-      const uploadedFile = await fileService.uploadFile(file, currentPath, (progress) => {
-        setUploadProgress(progress);
-      });
-      
-      console.log('File uploaded successfully:', uploadedFile);
-      
-      setFiles(prev => [...prev, uploadedFile]);
-      
+      await fileService.uploadFile(file, currentPath, (progress: number) => setUploadProgress(progress));
+      await refreshFiles();
+      await updateStorageInfo();
       addNotification({
         type: 'success',
-        message: `File "${file.name}" uploaded successfully`,
+        message: `Successfully uploaded ${file.name}`
       });
     } catch (error) {
       console.error('Error uploading file:', error);
-      setError('Failed to upload file');
       addNotification({
         type: 'error',
-        message: 'Failed to upload file',
+        message: `Failed to upload ${file.name}`
       });
-    } finally {
-      setIsLoading(false);
-      setUploadProgress(0);
+      throw error;
     }
   };
 
-  // Delete multiple items (files and/or folders)
-  const deleteItems = async (items: (FileItem | Folder)[]): Promise<void> => {
+  // Delete items with storage update
+  const deleteItems = async (items: (FileItem | Folder)[]) => {
     try {
-      setIsLoading(true);
-      setError(null);
-      
-      const fileIds = items
-        .filter(item => 'type' in item) // Only files have a 'type' property
-        .map(item => item.id)
-        .filter(id => id !== undefined && id !== null); // Filter out undefined/null IDs
-      
-      const folderIds = items
-        .filter(item => !('type' in item)) // Folders don't have a 'type' property
-        .map(item => item.id)
-        .filter(id => id !== undefined && id !== null); // Filter out undefined/null IDs
-      
-      if (fileIds.length > 0) {
-        await Promise.all(fileIds.map(id => fileService.moveToTrash(id)));
-        setFiles(prev => prev.filter(file => !fileIds.includes(file.id)));
+      for (const item of items) {
+        if ('type' in item) {
+          await fileService.deleteFile(item.id);
+        } else {
+          await folderService.deleteFolder(item.id);
+        }
       }
-      
-      if (folderIds.length > 0) {
-        await Promise.all(folderIds.map(id => folderService.moveToTrash(id)));
-        setFolders(prev => prev.filter(folder => !folderIds.includes(folder.id)));
-      }
-      
+      await refreshFiles();
+      await updateStorageInfo();
       addNotification({
         type: 'success',
-        message: `Moved ${items.length} item${items.length > 1 ? 's' : ''} to trash`
+        message: `Successfully deleted ${items.length} item(s)`
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting items:', error);
-      setError(error.message || 'Failed to delete items');
       addNotification({
         type: 'error',
-        message: `Failed to delete items: ${error.message || 'Unknown error'}`
+        message: 'Failed to delete items'
       });
-    } finally {
-      setIsLoading(false);
+      throw error;
     }
   };
 
@@ -579,10 +570,13 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       await fileService.restoreFromTrash(fileId);
 
-      // Update the files list, checking for both id and _id
+      // Update the files list
       setFiles(prev => prev.map(file => {
-        const currentId = file.id || file._id;
-        return currentId === fileId ? { ...file, inTrash: false } : file;
+        const mongoFile = file as FileItem & { _id?: string };
+        if (file.id === fileId || (mongoFile._id && mongoFile._id === fileId)) {
+          return { ...file, inTrash: false };
+        }
+        return file;
       }));
 
       addNotification({
@@ -596,62 +590,29 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         type: 'error',
         message: `Failed to restore file: ${error.message || 'Unknown error'}`
       });
-      throw error; // Re-throw to handle in component
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Empty trash
-  const emptyTrash = async (): Promise<void> => {
+  // Empty trash with storage update
+  const emptyTrash = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Get all files in trash first
-      const trashedFiles = await fileService.getTrashedFiles();
-      
-      if (!trashedFiles || trashedFiles.length === 0) {
-        addNotification({
-          type: 'info',
-          message: 'Trash is already empty'
-        });
-        return;
-      }
-
-      // Filter out files with invalid IDs
-      const validFiles = trashedFiles.filter(file => file.id && file.id !== 'undefined');
-
-      if (validFiles.length === 0) {
-        addNotification({
-          type: 'warning',
-          message: 'No valid files to delete'
-        });
-        return;
-      }
-
-      // Delete each file permanently
-      await Promise.all(
-        validFiles.map(file => fileService.permanentlyDeleteFile(file.id))
-      );
-
-      // Update the files list
-      setFiles(prev => prev.filter(file => !file.inTrash));
-
+      await fileService.emptyTrash();
+      await refreshFiles();
+      await updateStorageInfo();
       addNotification({
         type: 'success',
         message: 'Trash emptied successfully'
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error emptying trash:', error);
-      setError(error.message || 'Failed to empty trash');
       addNotification({
         type: 'error',
-        message: `Failed to empty trash: ${error.message || 'Unknown error'}`
+        message: 'Failed to empty trash'
       });
-      throw error; // Re-throw to handle in component
-    } finally {
-      setIsLoading(false);
+      throw error;
     }
   };
 
@@ -708,7 +669,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         restoreFromTrash,
         emptyTrash,
         getTrashFiles,
-        refreshFiles: loadFiles,
+        refreshFiles
       }}
     >
       {children}

@@ -192,6 +192,7 @@ const Recent: React.FC = () => {
                 <FileCard 
                   key={file.id}
                   file={file}
+                  viewMode="grid"
                   selected={false}
                   onSelect={() => {}}
                   onStar={() => handleStar(file)}
@@ -217,44 +218,26 @@ const Recent: React.FC = () => {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Size
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {recentFiles.map(file => (
-                    <tr key={file.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <span className="text-sm font-medium">{file.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(file.modifiedAt).toLocaleDateString()}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button 
-                          className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-4"
-                          onClick={() => handleStar(file)}
-                        >
-                          {file.starred ? 'Unstar' : 'Star'}
-                        </button>
-                        <button 
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                          onClick={() => handleDelete(file)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
+                    <FileCard 
+                      key={file.id}
+                      file={file}
+                      viewMode="list"
+                      selected={false}
+                      onSelect={() => {}}
+                      onStar={() => handleStar(file)}
+                      onRename={() => {}}
+                      onShare={() => {}}
+                      onDelete={() => handleDelete(file)}
+                      onDownload={() => {}}
+                      onClick={() => {}}
+                    />
                   ))}
                 </tbody>
               </table>

@@ -552,15 +552,63 @@ const Dashboard: React.FC = () => {
                           Name
                         </th>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Modified
+                          Last Modified
                         </th>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Size
                         </th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {/* Table rows would go here */}
+                      {folders.map((folder: Folder) => (
+                        <FolderCard 
+                          key={`folder-${folder.id}`}
+                          folder={folder}
+                          viewMode="list"
+                          selected={selectedItems.some((item: FileItem | Folder) => item.id === folder.id)}
+                          onSelect={toggleSelect}
+                          onStar={starItem}
+                          onRename={(folder) => {
+                            setItemToRename(folder);
+                            setNewName(folder.name);
+                            setShowRenameDialog(true);
+                          }}
+                          onShare={(folder) => {
+                            setItemToShare(folder);
+                            setShareLink(null);
+                            setShowShareModal(true);
+                          }}
+                          onDelete={(folder) => deleteItems([folder])}
+                          onClick={handleFolderClick}
+                        />
+                      ))}
+                      
+                      {files.map((file: FileItem) => (
+                        <FileCard 
+                          key={`file-${file.id}`}
+                          file={file}
+                          viewMode="list"
+                          selected={selectedItems.some((item: FileItem | Folder) => item.id === file.id)}
+                          onSelect={toggleSelect}
+                          onStar={starItem}
+                          onRename={(file) => {
+                            setItemToRename(file);
+                            setNewName(file.name);
+                            setShowRenameDialog(true);
+                          }}
+                          onShare={(file) => {
+                            setItemToShare(file);
+                            setShareLink(null);
+                            setShowShareModal(true);
+                          }}
+                          onDelete={(file) => deleteItems([file])}
+                          onDownload={() => {}}
+                          onClick={handleFileClick}
+                        />
+                      ))}
                     </tbody>
                   </table>
                 </div>

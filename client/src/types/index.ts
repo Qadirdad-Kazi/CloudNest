@@ -10,7 +10,7 @@ export interface User {
 }
 
 export interface FileItem {
-  id?: string;
+  id: string;
   _id?: string;
   name: string;
   type: string;
@@ -22,11 +22,14 @@ export interface FileItem {
   cloudId: string;
   url: string;
   starred: boolean;
+  shared: boolean;
   modifiedAt: string;
   createdAt: string;
   lastAccessed: string;
   isDeleted: boolean;
   deletedAt: string | null;
+  inTrash: boolean;
+  mongodbId?: string;
 }
 
 export interface Folder {

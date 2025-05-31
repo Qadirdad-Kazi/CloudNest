@@ -248,7 +248,7 @@ const Trash: React.FC = () => {
             </div>
           )}
 
-          {/* File grid */}
+          {/* File grid/list */}
           {!isLoading && !error && trashedFiles.length > 0 && (
             viewMode === 'grid' ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -256,6 +256,7 @@ const Trash: React.FC = () => {
                   <FileCard 
                     key={file.id}
                     file={file}
+                    viewMode="grid"
                     selected={selectedFiles.includes(file.id || (file as any)._id)}
                     onSelect={() => handleFileSelect(file.id || (file as any)._id)}
                     onStar={() => {}}
@@ -273,15 +274,15 @@ const Trash: React.FC = () => {
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900">
-                    <tr key="header-row">
+                    <tr>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Name
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Size
+                        Last Modified
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Modified
+                        Size
                       </th>
                       <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Actions
@@ -290,46 +291,21 @@ const Trash: React.FC = () => {
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {trashedFiles.map(file => (
-                      <tr key={file.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10">
-                              {/* File icon would go here */}
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                {file.name}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {(file.size / 1024).toFixed(2)} KB
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {new Date(file.createdAt).toLocaleDateString()}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <React.Fragment key={`actions-${file.id}`}>
-                            <button
-                              onClick={() => handleRestore(file)}
-                              className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-4"
-                            >
-                              Restore
-                            </button>
-                            <button
-                              onClick={() => handleDelete(file)}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                            >
-                              Delete
-                            </button>
-                          </React.Fragment>
-                        </td>
-                      </tr>
+                      <FileCard 
+                        key={file.id}
+                        file={file}
+                        viewMode="list"
+                        selected={selectedFiles.includes(file.id || (file as any)._id)}
+                        onSelect={() => handleFileSelect(file.id || (file as any)._id)}
+                        onStar={() => {}}
+                        onRename={() => {}}
+                        onShare={() => {}}
+                        onDelete={() => handleDelete(file)}
+                        onRestore={handleRestore}
+                        onDownload={() => {}}
+                        onClick={() => {}}
+                        isInTrash={true}
+                      />
                     ))}
                   </tbody>
                 </table>

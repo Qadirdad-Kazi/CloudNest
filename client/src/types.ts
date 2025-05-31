@@ -5,6 +5,7 @@ export interface FileItem {
   size: number;
   path: string;
   starred: boolean;
+  shared: boolean;
   inTrash: boolean;
   cloudProvider: string;
   url: string;
@@ -17,7 +18,13 @@ export interface Folder {
   id: string;
   name: string;
   path: string;
+  owner: string;
+  shared: boolean;
   starred: boolean;
+  inTrash?: boolean;
+  tags: string[];
+  createdAt: string;
+  modifiedAt: string;
 }
 
 export interface ShareLink {
