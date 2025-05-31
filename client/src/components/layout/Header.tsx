@@ -197,16 +197,49 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
             className="flex items-center space-x-2"
             onClick={() => setShowUserMenu(!showUserMenu)}
           >
-            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium">
-              {user?.name.charAt(0) || 'U'}
-            </div>
+            {user?.avatar ? (
+              <img 
+                src={`/avatars/${user.avatar.replace('avatar1', 'boy1.png')
+                  .replace('avatar2', 'boy2.png')
+                  .replace('avatar3', 'doctor.png')
+                  .replace('avatar4', 'girl.png')
+                  .replace('avatar5', 'man.png')
+                  .replace('avatar6', 'woman.png')}`}
+                alt={user?.name}
+                className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium">
+                {user?.name?.charAt(0) || 'U'}
+              </div>
+            )}
           </button>
           
           {showUserMenu && (
             <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 py-1 z-10">
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-                <p className="text-sm font-medium">{user?.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
+                <div className="flex items-center space-x-3">
+                  {user?.avatar ? (
+                    <img 
+                      src={`/avatars/${user.avatar.replace('avatar1', 'boy1.png')
+                        .replace('avatar2', 'boy2.png')
+                        .replace('avatar3', 'doctor.png')
+                        .replace('avatar4', 'girl.png')
+                        .replace('avatar5', 'man.png')
+                        .replace('avatar6', 'woman.png')}`}
+                      alt={user?.name}
+                      className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium">
+                      {user?.name?.charAt(0) || 'U'}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user?.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
+                  </div>
+                </div>
               </div>
               
               <ul>

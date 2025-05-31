@@ -18,7 +18,6 @@ import Settings from './pages/Settings';
 import Suggestions from './pages/Suggestions';
 import AdminSuggestions from './pages/AdminSuggestions';
 import { AuthProvider } from './contexts/AuthContext';
-import { DarkModeProvider } from './contexts/DarkModeContext';
 
 // Loading component
 const LoadingSpinner: React.FC = () => (
@@ -61,13 +60,12 @@ const App: React.FC = () => {
   return (
     <Router>
       <AuthProvider>
-        <DarkModeProvider>
-          <ThemeProvider>
-            <NotificationProvider>
-              <FileProvider>
-                <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-                  <NotificationContainer />
-                  <Routes>
+        <ThemeProvider>
+          <NotificationProvider>
+            <FileProvider>
+              <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                <NotificationContainer />
+                <Routes>
                   {/* Public routes */}
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
@@ -90,11 +88,10 @@ const App: React.FC = () => {
                   {/* Catch all route */}
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
-                </div>
-              </FileProvider>
-            </NotificationProvider>
-          </ThemeProvider>
-        </DarkModeProvider>
+              </div>
+            </FileProvider>
+          </NotificationProvider>
+        </ThemeProvider>
       </AuthProvider>
     </Router>
   );

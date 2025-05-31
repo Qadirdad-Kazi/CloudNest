@@ -3,33 +3,33 @@ import React from 'react';
 const avatars = [
   {
     id: 'avatar1',
-    url: '/avatars/avatar-1.png',
-    alt: 'Professional avatar with blue background'
+    url: '/avatars/boy1.png',
+    alt: 'Default avatar with blue background'
   },
   {
     id: 'avatar2',
-    url: '/avatars/avatar-2.png',
-    alt: 'Creative avatar with green background'
+    url: '/avatars/boy2.png',
+    alt: 'Professional avatar with gray background'
   },
   {
     id: 'avatar3',
-    url: '/avatars/avatar-3.png',
-    alt: 'Casual avatar with orange background'
+    url: '/avatars/doctor.png',
+    alt: 'Casual avatar with green background'
   },
   {
     id: 'avatar4',
-    url: '/avatars/avatar-4.png',
-    alt: 'Tech avatar with purple background'
+    url: '/avatars/girl.png',
+    alt: 'Creative avatar with purple background'
   },
   {
     id: 'avatar5',
-    url: '/avatars/avatar-5.png',
-    alt: 'Modern avatar with red background'
+    url: '/avatars/man.png',
+    alt: 'Modern avatar with orange background'
   },
   {
     id: 'avatar6',
-    url: '/avatars/avatar-6.png',
-    alt: 'Classic avatar with gray background'
+    url: '/avatars/woman.png',
+    alt: 'Classic avatar with red background'
   }
 ];
 

@@ -4,9 +4,11 @@ import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { User } from '../contexts/AuthContext';
-import axios from 'axios';
+import { useNotifications } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
 import AvatarSelector, { avatars } from '../components/AvatarSelector';
+import axios from '../utils/axios';
+import { API_ENDPOINTS } from '../config/api';
 
 // Extended user interface for profile page
 interface ExtendedUser extends User {
@@ -32,6 +34,7 @@ const Profile: React.FC = () => {
     address: (user as ExtendedUser)?.address || '',
     avatar: (user as ExtendedUser)?.avatar || 'avatar1'
   });
+  const { addNotification } = useNotifications();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -46,31 +49,49 @@ const Profile: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.put('/api/users/avatar', { avatarId });
+      const response = await axios.put(API_ENDPOINTS.USERS.AVATAR, { avatarId });
       
-      setProfileData(prev => ({
-        ...prev,
-        avatar: avatarId
-      }));
-      
-      // Update user context with new data
-      if (response.data.user) {
+      if (response.data && response.data.user) {
+        setProfileData(prev => ({
+          ...prev,
+          avatar: response.data.user.avatar
+        }));
         updateUser(response.data.user);
+        
+        addNotification({
+          type: 'success',
+          message: 'Avatar updated successfully'
+        });
       } else {
-        updateUser({ ...user, avatar: avatarId } as Partial<User>);
+        throw new Error('Invalid server response');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update avatar');
-      console.error('Error updating avatar:', err);
+      console.error('Avatar update error:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to update avatar';
+      setError(errorMessage);
+      addNotification({
+        type: 'error',
+        message: errorMessage
+      });
     } finally {
       setLoading(false);
+      setIsAvatarSelectorOpen(false);
     }
   };
 
   // Get the current avatar URL
   const getCurrentAvatarUrl = () => {
-    const currentAvatar = avatars.find(a => a.id === profileData.avatar);
-    return currentAvatar?.url || avatars[0].url;
+    if (!profileData.avatar) return avatars[0].url;
+    const avatarId = profileData.avatar.replace('avatar', '');
+    const avatarMap: { [key: string]: string } = {
+      '1': 'boy1.png',
+      '2': 'boy2.png',
+      '3': 'doctor.png',
+      '4': 'girl.png',
+      '5': 'man.png',
+      '6': 'woman.png'
+    };
+    return `/avatars/${avatarMap[avatarId] || 'boy1.png'}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,7 +123,9 @@ const Profile: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-      <Sidebar activeItem="profile" onItemClick={() => {}} />
+      <div className="fixed inset-y-0 left-0 z-30 w-64 transition-transform duration-300 ease-in-out transform md:relative md:translate-x-0">
+        <Sidebar activeItem="profile" />
+      </div>
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
@@ -111,20 +134,20 @@ const Profile: React.FC = () => {
           toggleDarkMode={toggleDarkMode}
         />
         
-        <main className="flex-1 overflow-y-auto p-4">
-          <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div className="relative h-48 rounded-t-lg bg-indigo-600">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="relative h-48 rounded-t-lg bg-gradient-to-r from-indigo-500 to-purple-600">
               <div className="absolute -bottom-12 left-8">
                 <div className="relative">
                   <img
                     src={getCurrentAvatarUrl()}
                     alt="Profile"
-                    className={`w-24 h-24 rounded-full border-4 border-white dark:border-gray-800 ${loading ? 'opacity-50' : ''}`}
+                    className={`w-24 h-24 rounded-full border-4 border-white dark:border-gray-800 object-cover ${loading ? 'opacity-50' : ''}`}
                   />
                   {isEditing && (
                     <button
                       onClick={() => setIsAvatarSelectorOpen(true)}
-                      className={`absolute bottom-0 right-0 bg-indigo-600 p-2 rounded-full cursor-pointer hover:bg-indigo-700 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className={`absolute bottom-0 right-0 bg-indigo-600 p-2 rounded-full cursor-pointer hover:bg-indigo-700 transition-colors duration-200 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                       disabled={loading}
                     >
                       <Camera className="w-4 h-4 text-white" />

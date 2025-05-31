@@ -4,7 +4,7 @@ import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
-import { useDarkMode } from '../contexts/DarkModeContext';
+import { useTheme } from '../context/ThemeContext';
 import { API_CONFIG, API_ENDPOINTS } from '../config/api';
 import axios from '../utils/axios';
 
@@ -50,7 +50,7 @@ interface UserSettings {
 const Settings: React.FC = () => {
   const { user, updateUser, logout } = useAuth();
   const { addNotification } = useNotifications();
-  const { darkMode, setDarkMode } = useDarkMode();
+  const { darkMode, toggleDarkMode } = useTheme();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +97,11 @@ const Settings: React.FC = () => {
           ...response.data,
           password: prev.password // Preserve password form state
         }));
-        setDarkMode(response.data.appearance.darkMode);
+        
+        // Update dark mode if it's different from current state
+        if (response.data.appearance?.darkMode !== darkMode) {
+          toggleDarkMode();
+        }
       } catch (err) {
         console.error('Error loading settings:', err);
         setError('Failed to load settings');
@@ -111,7 +115,7 @@ const Settings: React.FC = () => {
     };
 
     loadSettings();
-  }, []); // Empty dependency array since we only want to load settings once
+  }, []);
 
   const handleToggle = (category: keyof UserSettings, setting: string) => {
     setSettings(prev => {
@@ -125,8 +129,7 @@ const Settings: React.FC = () => {
 
         // Special handling for dark mode
         if (category === 'appearance' && setting === 'darkMode') {
-          const newDarkMode = (updatedCategorySettings as any)[setting];
-          setDarkMode(newDarkMode);
+          toggleDarkMode();
         }
       }
       
@@ -265,7 +268,7 @@ const Settings: React.FC = () => {
 
         // Reset dark mode
         const systemDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        setDarkMode(systemDarkMode);
+        toggleDarkMode();
 
         // Save the default settings to the server
         await axios.put(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.USERS.SETTINGS}`, {
@@ -330,18 +333,7 @@ const Settings: React.FC = () => {
         <Header 
           onSearch={() => {}} 
           darkMode={darkMode}
-          toggleDarkMode={() => {
-            const newDarkMode = !darkMode;
-            setDarkMode(newDarkMode);
-            setSettings(prev => ({
-              ...prev,
-              appearance: {
-                ...prev.appearance,
-                darkMode: newDarkMode
-              }
-            }));
-            handleSettingsSave().catch(console.error);
-          }}
+          toggleDarkMode={toggleDarkMode}
         />
         
         <main className="flex-1 overflow-y-auto p-4 md:p-6">

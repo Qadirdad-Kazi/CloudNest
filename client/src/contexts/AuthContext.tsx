@@ -8,6 +8,7 @@ export interface User {
   email: string;
   role: string;
   token: string;
+  avatar?: string;
   storageUsed?: number;
   storageLimit?: number;
   settings?: {

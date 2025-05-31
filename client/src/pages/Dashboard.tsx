@@ -15,12 +15,14 @@ import ShareModal from '../components/modals/ShareModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useFiles } from '../context/FileContext';
 import { useNotifications } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
 import { FileItem, Folder, ShareLink, BreadcrumbItem } from '../types';
 import { mongodbService } from '../services/mongodbService';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
+  const { darkMode, toggleDarkMode } = useTheme();
   const { 
     files,
     folders,
@@ -45,7 +47,6 @@ const Dashboard: React.FC = () => {
   
   const [activeSection, setActiveSection] = useState('my-drive');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [darkMode, setDarkMode] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [showRenameDialog, setShowRenameDialog] = useState(false);
@@ -55,17 +56,8 @@ const Dashboard: React.FC = () => {
   const [itemToShare, setItemToShare] = useState<FileItem | Folder | null>(null);
   const [shareLink, setShareLink] = useState<ShareLink | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<(FileItem | Folder)[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  
-  // Apply dark mode class to document
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
+  const [searchResults, setSearchResults] = useState<Array<FileItem | Folder>>([]);
   
   // Reset state when switching sections
   useEffect(() => {
@@ -255,7 +247,7 @@ const Dashboard: React.FC = () => {
         <Header 
           onSearch={handleSearch} 
           darkMode={darkMode} 
-          toggleDarkMode={() => setDarkMode(!darkMode)} 
+          toggleDarkMode={toggleDarkMode} 
         />
         
         <main className="flex-1 overflow-y-auto p-4">
