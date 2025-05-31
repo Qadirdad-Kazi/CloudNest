@@ -22,7 +22,7 @@ interface FileContextType {
   storageLimit: number;
   setCurrentPath: (path: string) => void;
   createFolder: (name: string) => Promise<void>;
-  uploadFile: (file: File) => Promise<void>;
+  uploadFile: (file: File, onProgress?: (progress: number) => void) => Promise<void>;
   deleteItems: (items: (FileItem | Folder)[]) => Promise<void>;
   renameItem: (item: FileItem | Folder, newName: string) => Promise<void>;
   toggleSelect: (item: FileItem | Folder) => void;
@@ -199,9 +199,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Upload file with storage update
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File, onProgress?: (progress: number) => void) => {
     try {
-      await fileService.uploadFile(file, currentPath, (progress: number) => setUploadProgress(progress));
+      await fileService.uploadFile(file, currentPath, onProgress);
       await refreshFiles();
       await updateStorageInfo();
       addNotification({

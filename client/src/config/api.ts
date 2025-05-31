@@ -24,7 +24,8 @@ export const API_CONFIG = {
   CLOUDINARY: {
     CLOUD_NAME: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
     API_KEY: import.meta.env.VITE_CLOUDINARY_API_KEY,
-    UPLOAD_URL: `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`
+    UPLOAD_URL: `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
+    UPLOAD_PRESET: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'cloudnest'
   },
   TIMEOUT: 120000 // 2 minutes
 };
@@ -100,6 +101,7 @@ export type ApiEndpoints = {
     LIST: string;
     UNREAD: string;
     MARK_READ: string;
+    DELETE: string;
   };
 };
 
@@ -171,6 +173,7 @@ export const API_ENDPOINTS: ApiEndpoints = {
   NOTIFICATIONS: {
     LIST: `/notifications`,
     UNREAD: `/notifications/unread`,
-    MARK_READ: `/notifications/read`
+    MARK_READ: `/notifications/read`,
+    DELETE: `/notifications`
   }
 };

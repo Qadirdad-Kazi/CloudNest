@@ -69,7 +69,7 @@ export const notificationService = {
   // Delete a notification
   async deleteNotification(notificationId: string): Promise<void> {
     try {
-      await axios.delete(`${API_ENDPOINTS.NOTIFICATIONS.LIST}/${notificationId}`);
+      await axios.delete(`${API_ENDPOINTS.NOTIFICATIONS.DELETE}/${notificationId}`);
     } catch (error) {
       console.error('Error deleting notification:', error);
       throw new Error('Failed to delete notification');

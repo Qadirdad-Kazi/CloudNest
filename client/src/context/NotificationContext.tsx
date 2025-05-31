@@ -194,12 +194,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const removeNotification = async (id: string) => {
     try {
-      await notificationService.deleteNotification(id);
+      // Check if it's a local notification (starts with 'local-')
+      const isLocalNotification = id.startsWith('local-');
+      
+      if (!isLocalNotification) {
+        // Only try to delete from server if it's not a local notification
+        try {
+          await notificationService.deleteNotification(id);
+        } catch (error) {
+          console.warn('Failed to delete notification from server:', error);
+        }
+      }
+      
+      // Always update local state
       setNotifications(prev => {
-        // Ensure prev is always an array
         const prevArray = Array.isArray(prev) ? prev : [];
         return prevArray.filter(notification => notification.id !== id);
       });
+      
+      // Update unread count if needed
       const wasUnread = notifications.find(n => n.id === id)?.read === false;
       if (wasUnread) {
         setUnreadCount(prev => Math.max(0, prev - 1));

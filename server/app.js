@@ -111,13 +111,28 @@ const getMaxFileSize = () => {
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? process.env.ALLOWED_ORIGINS?.split(',') || ['https://cloudnest.vercel.app']
-    : ['http://localhost:5173'],
+    : ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
-  methods: parseMethods(),
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+    'X-CSRF-Token'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
   maxAge: 600 // 10 minutes
 };
 
 app.use(cors(corsOptions));
+
+// Enable pre-flight requests for all routes
+app.options('*', cors(corsOptions));
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

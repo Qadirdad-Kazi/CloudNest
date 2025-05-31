@@ -152,8 +152,9 @@ const Dashboard: React.FC = () => {
     if (!files || files.length === 0) return;
 
     for (const file of files) {
+      const uploadNotificationId = `upload-${Date.now()}-${file.name}`;
       try {
-        const uploadNotificationId = `upload-${Date.now()}-${file.name}`;
+        // Initial upload notification
         addNotification({
           id: uploadNotificationId,
           type: 'info',
@@ -162,22 +163,38 @@ const Dashboard: React.FC = () => {
           progress: 0
         });
 
-        await uploadFile(file);
+        // Upload with progress tracking
+        await uploadFile(file, (progress: number) => {
+          addNotification({
+            id: uploadNotificationId,
+            type: 'info',
+            message: `Uploading ${file.name}...`,
+            title: 'Upload in Progress',
+            progress: progress
+          });
+        });
 
+        // Success notification
         addNotification({
+          id: uploadNotificationId,
           type: 'success',
           message: `Successfully uploaded ${file.name}`,
-          title: 'Upload Complete'
+          title: 'Upload Complete',
+          progress: 100
         });
       } catch (error) {
         console.error('Error uploading file:', error);
         addNotification({
+          id: uploadNotificationId,
           type: 'error',
           message: `Failed to upload ${file.name}. ${error instanceof Error ? error.message : 'Please try again.'}`,
           title: 'Upload Error'
         });
       }
     }
+    
+    // Clear the input
+    event.target.value = '';
     refreshFiles();
   };
   

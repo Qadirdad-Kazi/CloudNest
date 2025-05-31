@@ -128,16 +128,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateUser = async (userData: Partial<User>) => {
-    if (user) {
-      try {
-        const response = await axios.put(API_ENDPOINTS.USERS.PROFILE, userData);
-        setUser({ ...user, ...response.data });
-      } catch (error) {
-        console.error('Error updating user:', error);
-        setError(error instanceof Error ? error.message : 'Failed to update user');
-      }
-    }
+  const updateUser = (userData: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...userData } : null);
   };
 
   // Function to calculate storage based on local files

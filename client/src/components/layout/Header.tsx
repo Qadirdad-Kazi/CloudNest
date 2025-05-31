@@ -199,7 +199,8 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
           >
             {user?.avatar ? (
               <img 
-                src={`/avatars/${user.avatar.replace('avatar1', 'boy1.png')
+                src={`/avatars/${user.avatar
+                  .replace('avatar1', 'boy1.png')
                   .replace('avatar2', 'boy2.png')
                   .replace('avatar3', 'doctor.png')
                   .replace('avatar4', 'girl.png')
@@ -221,7 +222,8 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
                 <div className="flex items-center space-x-3">
                   {user?.avatar ? (
                     <img 
-                      src={`/avatars/${user.avatar.replace('avatar1', 'boy1.png')
+                      src={`/avatars/${user.avatar
+                        .replace('avatar1', 'boy1.png')
                         .replace('avatar2', 'boy2.png')
                         .replace('avatar3', 'doctor.png')
                         .replace('avatar4', 'girl.png')

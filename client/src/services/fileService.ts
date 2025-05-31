@@ -11,14 +11,14 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Helper function to normalize file data from server
 export const normalizeFile = (file: any): FileItem => {
-  console.log('Normalizing file with isStarred:', file.isStarred);
-  const normalizedFile = {
+  return {
     id: file._id || file.id,
     name: file.name,
     type: file.type,
     size: file.size,
     path: file.path,
     starred: file.isStarred !== undefined ? Boolean(file.isStarred) : Boolean(file.starred),
+    shared: file.isShared !== undefined ? Boolean(file.isShared) : Boolean(file.shared),
     inTrash: Boolean(file.isDeleted),
     cloudProvider: file.cloudProvider || 'unknown',
     url: file.url || '',
@@ -26,8 +26,6 @@ export const normalizeFile = (file: any): FileItem => {
     updatedAt: file.modifiedAt || file.updatedAt || new Date().toISOString(),
     mongodbId: file.mongodbId
   };
-  console.log('Normalized file result:', normalizedFile);
-  return normalizedFile;
 };
 
 /**
@@ -107,83 +105,52 @@ export const fileService = {
     }
 
     const isImage = file.type.startsWith('image/');
-    const fileType = file.name.split('.').pop()?.toLowerCase() || '';
-
+    
     try {
-      let uploadProgress = 0;
-      const updateProgress = (progress: number) => {
-        uploadProgress = Math.min(progress, 95); // Cap at 95% until fully complete
-        if (onProgress) {
-          onProgress(uploadProgress);
-        }
-      };
-
-      // For images, try Cloudinary upload first
+      let fileUrl = '';
+      
       if (isImage) {
-        try {
-          // Upload image to Cloudinary with progress tracking
-          const imageUrl = await cloudinaryService.uploadImage(file, updateProgress);
-          
-          // Save file metadata to database
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('path', parentPath);
-          formData.append('type', fileType);
-          formData.append('cloudinaryUrl', imageUrl);
-          
-          // Send to server with increased timeout
-          const response = await axios.post(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.UPLOAD}`, formData, {
+        // Upload image to Cloudinary
+        fileUrl = await cloudinaryService.uploadImage(file, onProgress);
+      } else {
+        // Upload document to MongoDB
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('path', parentPath);
+        
+        const response = await axios.post(
+          `${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.UPLOAD}`,
+          formData,
+          {
             headers: {
               'Content-Type': 'multipart/form-data'
             },
-            timeout: UPLOAD_TIMEOUT,
             onUploadProgress: (progressEvent) => {
-              if (progressEvent.total) {
+              if (progressEvent.total && onProgress) {
                 const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                updateProgress(percent);
+                onProgress(percent);
               }
             }
-          });
-          
-          if (onProgress) onProgress(100);
-          return normalizeFile(response.data);
-        } catch (error: unknown) {
-          console.error('Error uploading to Cloudinary:', error);
-          throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      }
-
-      // For non-image files, upload directly to server
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('path', parentPath);
-      formData.append('type', fileType);
-
-      try {
-        const response = await axios.post(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.UPLOAD}`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          },
-          timeout: UPLOAD_TIMEOUT,
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              updateProgress(percent);
-            }
           }
-        });
-
-        // Ensure we mark as complete
+        );
+        
         if (onProgress) onProgress(100);
         return normalizeFile(response.data);
-      } catch (error: any) {
-        console.error('Error uploading file to server:', error);
-        const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-        throw new Error(`Failed to upload file: ${errorMessage}`);
       }
-    } catch (error: unknown) {
-      // Reset progress on error
-      if (onProgress) onProgress(0);
+      
+      // Create file record in database
+      const fileData = {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        path: parentPath,
+        url: fileUrl,
+        cloudProvider: isImage ? 'cloudinary' : 'mongodb'
+      };
+      
+      const response = await axios.post(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.LIST}`, fileData);
+      return normalizeFile(response.data);
+    } catch (error: any) {
       console.error('Error in file upload process:', error);
       throw error instanceof Error ? error : new Error('Unknown error during upload');
     }

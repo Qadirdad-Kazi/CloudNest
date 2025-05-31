@@ -56,7 +56,12 @@ const Profile: React.FC = () => {
           ...prev,
           avatar: response.data.user.avatar
         }));
-        updateUser(response.data.user);
+        
+        // Update the global user context with the new avatar
+        updateUser({
+          ...user,
+          avatar: response.data.user.avatar
+        });
         
         addNotification({
           type: 'success',
