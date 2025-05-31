@@ -187,29 +187,15 @@ export const fileService = {
   
   /**
    * Get files in trash
-   * @returns Promise with the list of files in trash
+   * @returns Promise with the list of trashed files
    */
-  async getTrashFiles(): Promise<FileItem[]> {
+  async getTrashedFiles(): Promise<FileItem[]> {
     try {
-      console.log('Fetching files from trash');
       const response = await axios.get(API_ENDPOINTS.FILES.TRASH);
-      console.log('Trash files retrieved:', response.data);
-      
-      // Ensure we always return an array, even if the server returns null/undefined
-      if (!response.data) {
-        console.warn('Server returned null/undefined for trash files');
-        return [];
-      }
-      
-      // Make sure all returned items have the inTrash flag set
-      const trashedFiles = Array.isArray(response.data) ? response.data : [];
-      return trashedFiles.map(file => ({
-        ...file,
-        inTrash: true
-      }));
+      return response.data;
     } catch (error: any) {
-      console.error('Error retrieving trash files:', error);
-      throw new Error(`Failed to get trash files: ${error?.message || 'Unknown error'}`);
+      console.error('Error retrieving trashed files:', error);
+      throw new Error(`Failed to get trashed files: ${error?.message || 'Unknown error'}`);
     }
   },
 
@@ -220,9 +206,7 @@ export const fileService = {
    */
   async moveToTrash(fileId: string): Promise<void> {
     try {
-      console.log('API call to move file to trash:', fileId);
-      await axios.post(API_ENDPOINTS.FILES.MOVE_TO_TRASH, { fileId });
-      console.log('File successfully moved to trash:', fileId);
+      await axios.post(`${API_ENDPOINTS.FILES.MOVE_TO_TRASH}/${fileId}`);
     } catch (error: any) {
       console.error('Error moving file to trash:', error);
       throw new Error(`Failed to move file to trash: ${error?.message || 'Unknown error'}`);
@@ -232,38 +216,24 @@ export const fileService = {
   /**
    * Restore a file from trash
    * @param fileId ID of the file to restore
-   * @returns Promise that resolves with the restored file data
+   * @returns Promise that resolves when the file is restored
    */
-  async restoreFromTrash(fileId: string): Promise<FileItem> {
+  async restoreFromTrash(fileId: string): Promise<void> {
     try {
-      console.log('Restoring file from trash:', fileId);
-      const response = await axios.post(API_ENDPOINTS.FILES.RESTORE, { fileId });
-      console.log('File restored from trash:', response.data);
-      
-      // Return the restored file data
-      return response.data.file;
+      await axios.post(`${API_ENDPOINTS.FILES.RESTORE}/${fileId}`);
     } catch (error: any) {
       console.error('Error restoring file from trash:', error);
-      throw new Error(`Failed to restore file from trash: ${error?.message || 'Unknown error'}`);
+      throw new Error(`Failed to restore file: ${error?.message || 'Unknown error'}`);
     }
   },
 
   /**
    * Empty the trash (permanently delete all files in trash)
-   * @returns Promise that resolves with the IDs of deleted files
+   * @returns Promise that resolves when the trash is emptied
    */
-  async emptyTrash(): Promise<string[]> {
+  async emptyTrash(): Promise<void> {
     try {
-      console.log('Permanently deleting all files in trash');
-      // This will permanently delete all files in trash from the database
-      const response = await axios.delete(API_ENDPOINTS.FILES.EMPTY_TRASH);
-      console.log('Trash emptied successfully', response.data);
-      
-      // Clear local trash files from localStorage
-      localStorage.removeItem('trashedFiles');
-      
-      // Return the IDs of deleted files
-      return response.data.deletedFileIds || [];
+      await axios.delete(API_ENDPOINTS.FILES.EMPTY_TRASH);
     } catch (error: any) {
       console.error('Error emptying trash:', error);
       throw new Error(`Failed to empty trash: ${error?.message || 'Unknown error'}`);

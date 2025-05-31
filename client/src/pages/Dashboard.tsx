@@ -131,11 +131,14 @@ const Dashboard: React.FC = () => {
   
   const handleFolderClick = (folder: Folder) => {
     console.log('Folder clicked:', folder);
+    // First set the current path, which will trigger the useEffect to load files
     setCurrentPath(folder.path);
     // Clear any search results when navigating
     setIsSearching(false);
     setSearchResults([]);
     setSearchQuery('');
+    // Clear selection when navigating
+    clearSelection();
   };
   
   const handleFileClick = (file: FileItem) => {

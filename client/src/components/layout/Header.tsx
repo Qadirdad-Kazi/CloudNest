@@ -135,20 +135,20 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
                 <h3 className="text-sm font-medium">Notifications</h3>
                 <div className="flex space-x-2">
-                  <button 
-                    key="mark-all-read"
-                    className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                    onClick={handleMarkAllRead}
-                  >
-                    Mark all as read
-                  </button>
-                  <button 
-                    key="clear-read"
-                    className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                    onClick={handleClearRead}
-                  >
-                    Clear all read
-                  </button>
+                  <React.Fragment key="notification-actions">
+                    <button 
+                      className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                      onClick={handleMarkAllRead}
+                    >
+                      Mark all as read
+                    </button>
+                    <button 
+                      className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                      onClick={handleClearRead}
+                    >
+                      Clear all read
+                    </button>
+                  </React.Fragment>
                 </div>
               </div>
               
@@ -159,31 +159,33 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
                     <p className="text-sm">No notifications</p>
                   </div>
                 ) : (
-                  notifications.map(notification => (
-                    <div 
-                      key={notification.id}
-                      className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                        !notification.read ? 'bg-blue-50 dark:bg-blue-900/10' : ''
-                      }`}
-                      onClick={(e) => handleNotificationClick(e, notification.id)}
-                    >
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0">
-                          {getNotificationIcon(notification.type)}
-                        </div>
-                        <div className="ml-3 flex-1">
-                          {notification.title && (
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {notification.title}
+                  <React.Fragment key="notification-list">
+                    {notifications.map(notification => (
+                      <div 
+                        key={notification.id}
+                        className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                          !notification.read ? 'bg-blue-50 dark:bg-blue-900/10' : ''
+                        }`}
+                        onClick={(e) => handleNotificationClick(e, notification.id)}
+                      >
+                        <div className="flex items-start">
+                          <div className="flex-shrink-0">
+                            {getNotificationIcon(notification.type)}
+                          </div>
+                          <div className="ml-3 flex-1">
+                            {notification.title && (
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {notification.title}
+                              </p>
+                            )}
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {notification.message}
                             </p>
-                          )}
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {notification.message}
-                          </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </React.Fragment>
                 )}
               </div>
             </div>
@@ -208,39 +210,41 @@ const Header: React.FC<HeaderProps> = ({ onSearch, darkMode, toggleDarkMode }) =
               </div>
               
               <ul>
-                <li key="profile">
-                  <button 
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
-                    onClick={() => handleNavigate('/profile')}
-                  >
-                    <User className="w-4 h-4 mr-2" />
-                    Profile
-                  </button>
-                </li>
-                <li key="settings">
-                  <button 
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
-                    onClick={() => handleNavigate('/settings')}
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Settings
-                  </button>
-                </li>
-                <li key="help">
-                  <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center">
-                    <HelpCircle className="w-4 h-4 mr-2" />
-                    Help & Support
-                  </button>
-                </li>
-                <li key="logout" className="border-t border-gray-200 dark:border-gray-800">
-                  <button 
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center text-red-600"
-                    onClick={logout}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Log out
-                  </button>
-                </li>
+                <React.Fragment key="user-menu-items">
+                  <li key="profile">
+                    <button 
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
+                      onClick={() => handleNavigate('/profile')}
+                    >
+                      <User className="w-4 h-4 mr-2" />
+                      Profile
+                    </button>
+                  </li>
+                  <li key="settings">
+                    <button 
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
+                      onClick={() => handleNavigate('/settings')}
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Settings
+                    </button>
+                  </li>
+                  <li key="help">
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center">
+                      <HelpCircle className="w-4 h-4 mr-2" />
+                      Help & Support
+                    </button>
+                  </li>
+                  <li key="logout" className="border-t border-gray-200 dark:border-gray-800">
+                    <button 
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center text-red-600"
+                      onClick={logout}
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Log out
+                    </button>
+                  </li>
+                </React.Fragment>
               </ul>
             </div>
           )}

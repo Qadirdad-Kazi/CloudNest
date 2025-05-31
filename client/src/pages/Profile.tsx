@@ -5,6 +5,7 @@ import Sidebar from '../components/layout/Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { User } from '../contexts/AuthContext';
 import axios from 'axios';
+import { useTheme } from '../context/ThemeContext';
 
 // Extended user interface for profile page
 interface ExtendedUser extends User {
@@ -18,22 +19,8 @@ interface ExtendedUser extends User {
 
 const Profile: React.FC = () => {
   const { user, updateUser } = useAuth();
+  const { darkMode, toggleDarkMode } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => {
-    // Initialize dark mode from localStorage or system preference
-    const savedDarkMode = localStorage.getItem('darkMode');
-    return savedDarkMode ? JSON.parse(savedDarkMode) : window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
-  
-  // Apply dark mode class to HTML element
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
-  }, [darkMode]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileData, setProfileData] = useState({
@@ -111,7 +98,7 @@ const Profile: React.FC = () => {
         <Header 
           onSearch={() => {}} 
           darkMode={darkMode}
-          toggleDarkMode={() => setDarkMode(!darkMode)}
+          toggleDarkMode={toggleDarkMode}
         />
         
         <main className="flex-1 overflow-y-auto p-4">

@@ -2,14 +2,14 @@ import axios from '../utils/axios';
 import { Folder } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 
-// Use the API endpoint directly as it now includes the base URL
-const API_URL = API_ENDPOINTS.FOLDERS.LIST;
-
 export const folderService = {
   // Create a new folder
   async createFolder(folderData: { name: string; path: string }): Promise<Folder> {
     try {
-      const response = await axios.post(API_URL, folderData);
+      const response = await axios.post(API_ENDPOINTS.FOLDERS.CREATE, {
+        name: folderData.name,
+        path: folderData.path || '/'
+      });
       return response.data;
     } catch (error) {
       console.error('Error creating folder:', error);
@@ -20,7 +20,7 @@ export const folderService = {
   // Get folders in a directory
   async getFolders(path: string = '/'): Promise<Folder[]> {
     try {
-      const response = await axios.get(API_URL, {
+      const response = await axios.get(API_ENDPOINTS.FOLDERS.LIST, {
         params: { path }
       });
       return response.data;
@@ -33,7 +33,7 @@ export const folderService = {
   // Delete a folder
   async deleteFolder(folderId: string): Promise<void> {
     try {
-      await axios.delete(`${API_URL}/${folderId}`);
+      await axios.delete(`${API_ENDPOINTS.FOLDERS.DELETE}/${folderId}`);
     } catch (error) {
       console.error('Error deleting folder:', error);
       throw error;
@@ -43,7 +43,7 @@ export const folderService = {
   // Rename a folder
   async renameFolder(folderId: string, newName: string): Promise<Folder> {
     try {
-      const response = await axios.patch(`${API_URL}/${folderId}/rename`, { name: newName });
+      const response = await axios.patch(`${API_ENDPOINTS.FOLDERS.LIST}/${folderId}/rename`, { newName });
       return response.data;
     } catch (error) {
       console.error('Error renaming folder:', error);

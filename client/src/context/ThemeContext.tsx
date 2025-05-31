@@ -1,45 +1,62 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from '../utils/axios';
+import { API_ENDPOINTS } from '../config/api';
 
 interface ThemeContextType {
   darkMode: boolean;
   toggleDarkMode: () => void;
 }
 
-const ThemeContext = createContext<ThemeContextType>({
-  darkMode: false,
-  toggleDarkMode: () => {},
-});
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export const useTheme = () => useContext(ThemeContext);
+export const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  return context;
+};
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Initialize darkMode from localStorage or system preference
-  const [darkMode, setDarkMode] = useState(() => {
-    // Check if user has already set a preference
-    const savedTheme = localStorage.getItem('cloudnest_theme');
-    if (savedTheme) {
-      return savedTheme === 'dark';
-    }
-    
-    // Otherwise use system preference
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
+  const [darkMode, setDarkMode] = useState(false);
 
-  // Update body class when darkMode changes
   useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark-mode');
-      localStorage.setItem('cloudnest_theme', 'dark');
-    } else {
-      document.body.classList.remove('dark-mode');
-      localStorage.setItem('cloudnest_theme', 'light');
-    }
-  }, [darkMode]);
+    // Load theme preference from user settings
+    const loadThemePreference = async () => {
+      try {
+        const response = await axios.get(API_ENDPOINTS.USERS.SETTINGS);
+        setDarkMode(response.data.appearance?.darkMode ?? false);
+      } catch (error) {
+        console.error('Error loading theme preference:', error);
+        // Default to light mode on error
+        setDarkMode(false);
+      }
+    };
 
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    setDarkMode(prevMode => !prevMode);
+    loadThemePreference();
+  }, []);
+
+  const toggleDarkMode = async () => {
+    try {
+      // Update the theme in the database
+      await axios.put(API_ENDPOINTS.USERS.SETTINGS, {
+        appearance: { darkMode: !darkMode }
+      });
+      
+      // Update local state
+      setDarkMode(!darkMode);
+      
+      // Apply theme to document
+      document.documentElement.classList.toggle('dark', !darkMode);
+    } catch (error) {
+      console.error('Error updating theme preference:', error);
+    }
   };
+
+  // Apply theme class to document
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
 
   return (
     <ThemeContext.Provider value={{ darkMode, toggleDarkMode }}>

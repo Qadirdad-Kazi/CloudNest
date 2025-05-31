@@ -18,6 +18,7 @@ import imageRoutes from './routes/imageRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 dotenv.config();
 
@@ -129,6 +130,7 @@ app.use('/api/images', imageRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)

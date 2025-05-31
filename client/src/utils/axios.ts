@@ -15,6 +15,9 @@ const instance = axios.create({
 instance.interceptors.request.use(
   (config) => {
     // Add any request processing here
+    if (config.url && !config.url.startsWith('http')) {
+      config.url = `${API_CONFIG.BASE_URL}${config.url}`;
+    }
     return config;
   },
   (error) => {

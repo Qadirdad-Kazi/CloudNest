@@ -49,8 +49,12 @@ router.post('/create', async (req, res) => {
       return res.status(400).json({ message: 'Folder name is required' });
     }
 
+    // Sanitize the name and path
+    const sanitizedName = name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const sanitizedPath = parentPath.replace(/\/+/g, '/').replace(/\/$/, '');
+
     // Create the full path for the folder
-    const folderPath = parentPath === '/' ? `/${name}` : `${parentPath}/${name}`;
+    const folderPath = sanitizedPath === '/' ? `/${sanitizedName}` : `${sanitizedPath}/${sanitizedName}`;
     
     // Check if folder already exists at this path
     const existingFolder = await Folder.findOne({
@@ -66,9 +70,9 @@ router.post('/create', async (req, res) => {
     // Create new folder in database
     const newFolder = new Folder({
       userId: req.user._id,
-      name,
+      name: sanitizedName,
       path: folderPath,
-      parentPath
+      parentPath: sanitizedPath
     });
 
     await newFolder.save();

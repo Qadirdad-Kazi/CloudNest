@@ -394,80 +394,37 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Load files and folders for the current path
-  const loadFiles = async () => {
-    // Check if we've already tried loading files recently to prevent loops
-    const lastLoadAttempt = localStorage.getItem('lastLoadFilesAttempt');
-    const lastPath = localStorage.getItem('lastLoadFilesPath');
-    const now = Date.now();
-    
-    // Only prevent loading if we're trying to load the same path within 5 seconds
-    if (lastLoadAttempt && lastPath === currentPath && (now - parseInt(lastLoadAttempt)) < 5000) {
-      console.log('Skipping files load to prevent loop');
-      return;
-    }
-    
-    // Record this attempt
-    localStorage.setItem('lastLoadFilesAttempt', now.toString());
-    localStorage.setItem('lastLoadFilesPath', currentPath);
-    
+  const loadFiles = async (path: string = currentPath) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('Loading files for path:', currentPath);
+      const [filesResponse, foldersResponse] = await Promise.all([
+        fileService.getFiles(path),
+        folderService.getFolders(path)
+      ]);
       
-      // Get files for the current path from the server
-      try {
-        const filesResponse = await fileService.getFiles(currentPath);
-        console.log('Files loaded:', filesResponse);
-        setFiles(Array.isArray(filesResponse) ? filesResponse : []);
-        
-        // Calculate total storage used from the files we have
-        const totalSize = filesResponse.reduce((total, file) => total + file.size, 0);
-        setStorageUsed(totalSize);
-        
-        // Mark successful API call
-        localStorage.setItem('filesApiAvailable', 'true');
-      } catch (fileError) {
-        console.error('Error loading files from server:', fileError);
-        setFiles([]);
-        
-        // Mark API as unavailable to avoid unnecessary calls
-        const error = fileError as Error; // Type assertion for TypeScript
-        if (error.message === 'Network Error') {
-          localStorage.setItem('filesApiAvailable', 'false');
-        }
-      }
-      
-      // Get folders for the current path from the server
-      try {
-        // Only try to get folders if files API was successful
-        if (localStorage.getItem('filesApiAvailable') === 'true') {
-          const foldersResponse = await folderService.getFolders(currentPath);
-          console.log('Folders loaded:', foldersResponse);
-          setFolders(Array.isArray(foldersResponse) ? foldersResponse : []);
-        } else {
-          // Skip folder loading if files API failed with network error
-          console.log('Skipping folder loading due to previous network error');
-          setFolders([]);
-        }
-      } catch (folderError) {
-        console.error('Error loading folders from server:', folderError);
-        setFolders([]);
-      }
-      
+      setFiles(filesResponse);
+      setFolders(foldersResponse);
     } catch (error) {
       console.error('Error loading files and folders:', error);
       setError('Failed to load files and folders');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadTrashedFiles = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
       
-      // Only show notification for non-network errors to avoid spam
-      const err = error as Error; // Type assertion for TypeScript
-      if (err.message !== 'Network Error') {
-        addNotification({
-          type: 'error',
-          message: 'Failed to load files and folders',
-        });
-      }
+      const response = await fileService.getTrashedFiles();
+      setFiles(response);
+      setCurrentPath('/trash');
+    } catch (error) {
+      console.error('Error loading trashed files:', error);
+      setError('Failed to load trashed files');
     } finally {
       setIsLoading(false);
     }
@@ -541,134 +498,40 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Move a file to trash
-  const moveToTrash = async (fileId: string): Promise<void> => {
+  const moveToTrash = async (fileId: string) => {
     try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Find the file that's being moved to trash
-      const fileToTrash = files.find(file => file.id === fileId);
-      if (!fileToTrash) {
-        throw new Error('File not found');
-      }
-      
-      // Call the API to move the file to trash
       await fileService.moveToTrash(fileId);
-      
-      // Remove the file from the current files list
-      setFiles(prev => prev.filter(file => file.id !== fileId));
-      
-      // Add the file to the trashed files list with inTrash flag
-      const trashedFile = { ...fileToTrash, inTrash: true, deletedAt: new Date().toISOString() };
-      
-      // Store the trashed files in localStorage for persistence
-      const storedTrashedFiles = localStorage.getItem('trashedFiles');
-      let trashedFiles = storedTrashedFiles ? JSON.parse(storedTrashedFiles) : [];
-      trashedFiles = [...trashedFiles, trashedFile];
-      localStorage.setItem('trashedFiles', JSON.stringify(trashedFiles));
-      
-      addNotification({
-        type: 'success',
-        message: 'File moved to trash',
-      });
+      // Refresh the current view
+      if (currentPath === '/trash') {
+        await loadTrashedFiles();
+      } else {
+        await loadFiles(currentPath);
+      }
     } catch (error) {
       console.error('Error moving file to trash:', error);
-      setError('Failed to move file to trash');
-      addNotification({
-        type: 'error',
-        message: 'Failed to move file to trash',
-      });
-    } finally {
-      setIsLoading(false);
+      throw new Error('Failed to move file to trash');
     }
   };
 
   // Restore a file from trash
-  const restoreFromTrash = async (fileId: string): Promise<void> => {
+  const restoreFromTrash = async (fileId: string) => {
     try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Get the file from the server with its original path
-      const restoredFile = await fileService.restoreFromTrash(fileId);
-      
-      console.log('File restored with data:', restoredFile);
-      
-      // Remove the file from localStorage trash if it exists
-      const storedTrashedFiles = localStorage.getItem('trashedFiles');
-      if (storedTrashedFiles) {
-        const trashedFiles = JSON.parse(storedTrashedFiles);
-        const updatedTrashedFiles = trashedFiles.filter((file: FileItem) => file.id !== fileId);
-        localStorage.setItem('trashedFiles', JSON.stringify(updatedTrashedFiles));
-      }
-      
-      // If we're currently viewing the path where the file should be restored to,
-      // add it back to the files list
-      if (currentPath === restoredFile.path || currentPath === restoredFile.parentPath) {
-        setFiles(prev => [...prev, restoredFile]);
-      }
-      
-      addNotification({
-        type: 'success',
-        message: `File restored to ${restoredFile.path}`,
-      });
+      await fileService.restoreFromTrash(fileId);
+      await loadTrashedFiles();
     } catch (error) {
       console.error('Error restoring file from trash:', error);
-      setError('Failed to restore file from trash');
-      addNotification({
-        type: 'error',
-        message: 'Failed to restore file from trash',
-      });
-    } finally {
-      setIsLoading(false);
+      throw new Error('Failed to restore file from trash');
     }
   };
 
   // Empty trash (permanently delete all files in trash)
-  const emptyTrash = async (): Promise<void> => {
+  const emptyTrash = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Get all files in trash first to show a confirmation if needed
-      const trashFiles = await getTrashFiles();
-      
-      if (trashFiles.length === 0) {
-        addNotification({
-          type: 'info',
-          message: 'Trash is already empty',
-        });
-        setIsLoading(false);
-        return;
-      }
-      
-      // In a real app, you might want to show a confirmation dialog here
-      console.log(`About to permanently delete ${trashFiles.length} files`);
-      
-      // Empty the trash on the server - this now returns the IDs of deleted files
-      const deletedFileIds = await fileService.emptyTrash();
-      
-      console.log('Deleted file IDs:', deletedFileIds);
-      
-      // Remove the deleted files from the current view if any are present
-      setFiles(prev => prev.filter(file => !deletedFileIds.includes(file.id)));
-      
-      // Also clear any local trash data
-      localStorage.removeItem('trashedFiles');
-      
-      addNotification({
-        type: 'success',
-        message: `${trashFiles.length} file(s) permanently deleted`,
-      });
+      await fileService.emptyTrash();
+      await loadTrashedFiles();
     } catch (error) {
       console.error('Error emptying trash:', error);
-      setError('Failed to empty trash');
-      addNotification({
-        type: 'error',
-        message: 'Failed to empty trash',
-      });
-    } finally {
-      setIsLoading(false);
+      throw new Error('Failed to empty trash');
     }
   };
 
@@ -680,7 +543,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Try to get trash files from the server
       let serverTrashFiles: FileItem[] = [];
       try {
-        serverTrashFiles = await fileService.getTrashFiles();
+        serverTrashFiles = await fileService.getTrashedFiles();
         console.log('Server trash files:', serverTrashFiles);
       } catch (serverError) {
         console.warn('Could not fetch trash files from server, using local data:', serverError);

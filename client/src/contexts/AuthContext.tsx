@@ -64,21 +64,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check if user is authenticated by making a request to the server
     const checkAuthStatus = async () => {
       try {
-        const response = await fetch(`${API_URL}/auth/me`, {
-          method: 'GET',
-          credentials: 'include', // This ensures cookies are sent with the request
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else {
-          // Clear user if not authenticated
-          setUser(null);
-        }
+        const response = await axios.get(API_ENDPOINTS.AUTH.VERIFY);
+        setUser(response.data);
       } catch (error) {
         console.error('Error checking authentication status:', error);
         setUser(null);
@@ -94,27 +81,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // This ensures cookies are sent with the request
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to login');
-      }
-
-      const data = await response.json();
-      
-      // Update user state - the cookie is set by the server
-      setUser(data);
-      return data;
+      const response = await axios.post(API_ENDPOINTS.AUTH.LOGIN, { email, password });
+      setUser(response.data);
+      return response.data;
     } catch (error: any) {
-      setError(error.message || 'An error occurred during login');
+      setError(error.response?.data?.message || 'An error occurred during login');
       throw error;
     } finally {
       setIsLoading(false);
@@ -125,26 +96,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // This ensures cookies are sent with the request
-        body: JSON.stringify({ name, email, password }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Registration failed');
-      }
-
-      const data = await response.json();
-      
-      // Update user state - the cookie is set by the server
-      setUser(data);
+      const response = await axios.post(API_ENDPOINTS.AUTH.REGISTER, { name, email, password });
+      setUser(response.data);
     } catch (error: any) {
-      setError(error.message || 'An error occurred during registration');
+      setError(error.response?.data?.message || 'An error occurred during registration');
       throw error;
     } finally {
       setIsLoading(false);
@@ -153,18 +108,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      // Call the server-side logout endpoint to clear the cookie
-      await fetch(`${API_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      await axios.post(API_ENDPOINTS.AUTH.LOGOUT);
     } catch (error) {
       console.error('Error during logout:', error);
     } finally {
-      // Clear the user state regardless of server response
       setUser(null);
     }
   };
@@ -172,23 +119,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateUser = async (userData: Partial<User>) => {
     if (user) {
       try {
-        // Call the server to update the user data
-        const response = await fetch(`${API_URL}/auth/update-profile`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(userData),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to update user');
-        }
-
-        const updatedUserData = await response.json();
-        setUser({ ...user, ...updatedUserData });
+        const response = await axios.put(API_ENDPOINTS.USERS.PROFILE, userData);
+        setUser({ ...user, ...response.data });
       } catch (error) {
         console.error('Error updating user:', error);
         setError(error instanceof Error ? error.message : 'Failed to update user');
