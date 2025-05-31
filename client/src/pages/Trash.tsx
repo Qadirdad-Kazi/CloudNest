@@ -15,6 +15,7 @@ const Trash: React.FC = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
 
   useEffect(() => {
     loadTrashedFiles();
@@ -130,13 +131,27 @@ const Trash: React.FC = () => {
       return;
     }
 
+    // Ask for confirmation before emptying trash
+    if (!window.confirm(`Are you sure you want to permanently delete ${trashedFiles.length} file(s)? This action cannot be undone.`)) {
+      return;
+    }
+
     try {
       setIsLoading(true);
-      await emptyTrash();
+      // Delete each file permanently
+      for (const file of trashedFiles) {
+        const fileId = file.id || (file as any)._id;
+        if (!fileId || fileId === 'undefined') {
+          console.error('Invalid file object:', file);
+          continue;
+        }
+        await deleteFile(fileId, true); // true for permanent deletion
+      }
       setTrashedFiles([]);
+      setSelectedFiles([]); // Clear selected files
       addNotification({
         type: 'success',
-        message: 'Trash emptied successfully',
+        message: `Successfully deleted ${trashedFiles.length} file(s) from trash`,
       });
     } catch (error) {
       console.error('Error emptying trash:', error);
@@ -147,6 +162,17 @@ const Trash: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Add function to handle file selection
+  const handleFileSelect = (fileId: string) => {
+    setSelectedFiles(prev => {
+      if (prev.includes(fileId)) {
+        return prev.filter(id => id !== fileId);
+      } else {
+        return [...prev, fileId];
+      }
+    });
   };
 
   return (
@@ -163,18 +189,18 @@ const Trash: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-4">
           {/* Action buttons */}
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Trash</h1>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+              Trash {trashedFiles.length > 0 ? `(${trashedFiles.length} items)` : ''}
+            </h1>
             
             <div className="flex space-x-4">
               <button
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center"
                 onClick={handleEmptyTrash}
                 disabled={isLoading || trashedFiles.length === 0}
               >
-                <div className="flex items-center">
-                  <Trash2 className="w-5 h-5 mr-2" />
-                  Empty Trash
-                </div>
+                <Trash2 className="w-5 h-5 mr-2" />
+                Empty Trash ({trashedFiles.length} items)
               </button>
               
               <div className="flex items-center space-x-2">
@@ -230,8 +256,8 @@ const Trash: React.FC = () => {
                   <FileCard 
                     key={file.id}
                     file={file}
-                    selected={false}
-                    onSelect={() => {}}
+                    selected={selectedFiles.includes(file.id || (file as any)._id)}
+                    onSelect={() => handleFileSelect(file.id || (file as any)._id)}
                     onStar={() => {}}
                     onRename={() => {}}
                     onShare={() => {}}

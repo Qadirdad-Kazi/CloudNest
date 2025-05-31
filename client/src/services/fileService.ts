@@ -110,11 +110,19 @@ export const fileService = {
     const fileType = file.name.split('.').pop()?.toLowerCase() || '';
 
     try {
+      let uploadProgress = 0;
+      const updateProgress = (progress: number) => {
+        uploadProgress = Math.min(progress, 95); // Cap at 95% until fully complete
+        if (onProgress) {
+          onProgress(uploadProgress);
+        }
+      };
+
       // For images, try Cloudinary upload first
       if (isImage) {
         try {
           // Upload image to Cloudinary with progress tracking
-          const imageUrl = await cloudinaryService.uploadImage(file, onProgress);
+          const imageUrl = await cloudinaryService.uploadImage(file, updateProgress);
           
           // Save file metadata to database
           const formData = new FormData();
@@ -124,21 +132,21 @@ export const fileService = {
           formData.append('cloudinaryUrl', imageUrl);
           
           // Send to server with increased timeout
-          const response = await axios.post(API_ENDPOINTS.FILES.UPLOAD, formData, {
+          const response = await axios.post(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.UPLOAD}`, formData, {
             headers: {
               'Content-Type': 'multipart/form-data'
             },
             timeout: UPLOAD_TIMEOUT,
             onUploadProgress: (progressEvent) => {
-              if (progressEvent.total && onProgress) {
-                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                onProgress(percentCompleted > 95 ? 95 : percentCompleted);
+              if (progressEvent.total) {
+                const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                updateProgress(percent);
               }
             }
           });
           
           if (onProgress) onProgress(100);
-          return response.data;
+          return normalizeFile(response.data);
         } catch (error: unknown) {
           console.error('Error uploading to Cloudinary:', error);
           throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -151,24 +159,33 @@ export const fileService = {
       formData.append('path', parentPath);
       formData.append('type', fileType);
 
-      const response = await axios.post(API_ENDPOINTS.FILES.UPLOAD, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        timeout: UPLOAD_TIMEOUT,
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total && onProgress) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            onProgress(percentCompleted > 95 ? 95 : percentCompleted);
+      try {
+        const response = await axios.post(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.UPLOAD}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          timeout: UPLOAD_TIMEOUT,
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              updateProgress(percent);
+            }
           }
-        }
-      });
+        });
 
-      if (onProgress) onProgress(100);
-      return response.data;
+        // Ensure we mark as complete
+        if (onProgress) onProgress(100);
+        return normalizeFile(response.data);
+      } catch (error: any) {
+        console.error('Error uploading file to server:', error);
+        const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+        throw new Error(`Failed to upload file: ${errorMessage}`);
+      }
     } catch (error: unknown) {
+      // Reset progress on error
+      if (onProgress) onProgress(0);
       console.error('Error in file upload process:', error);
-      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error instanceof Error ? error : new Error('Unknown error during upload');
     }
   },
 
@@ -283,38 +300,32 @@ export const fileService = {
       const id = fileId.toString(); // Convert to string in case it's an ObjectId
       console.log('Permanently deleting file:', id);
       
-      // First get the file details to know which storage system to clean up
-      const response = await axios.get(`${API_ENDPOINTS.FILES.LIST}/${id}`);
-      const file = response.data;
-      
-      // Delete from appropriate storage system
-      if (file.mongodbId) {
-        console.log('Deleting from MongoDB:', file.mongodbId);
-        // Delete from MongoDB storage
-        await mongodbService.deleteDocument(file.mongodbId);
-      } else if (file.cloudinaryUrl) {
-        // Extract public ID from Cloudinary URL
-        const publicId = file.cloudinaryUrl.split('/').pop()?.split('.')[0];
-        if (publicId) {
-          console.log('Deleting from Cloudinary:', publicId);
-          // Delete from Cloudinary
-          await cloudinaryService.deleteImage(publicId);
-        }
-      }
-      
-      // Finally, delete the file record from our database
+      // Delete the file record from our database with permanent flag
+      // This will trigger the server to clean up associated storage
       console.log('Deleting file record from database:', id);
-      const deleteResponse = await axios.delete(`${API_ENDPOINTS.FILES.DELETE}/${id}`, {
+      const deleteResponse = await axios.delete(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.LIST}/${id}`, {
         params: { permanent: true }
       });
 
-      if (!deleteResponse.data.success) {
-        throw new Error(deleteResponse.data.message || 'Failed to delete file record');
+      // Check if we got a success response
+      if (deleteResponse.data?.message === 'File permanently deleted' || deleteResponse.data?.success) {
+        console.log('Successfully deleted file:', id);
+        return;
       }
 
-      console.log('File permanently deleted:', id);
+      throw new Error(deleteResponse.data?.message || 'Failed to delete file record');
     } catch (error: any) {
-      console.error('Error permanently deleting file:', error);
+      console.error('Error in permanentlyDeleteFile:', error);
+      // Check if it's a 404 error and handle it gracefully
+      if (error.response?.status === 404) {
+        console.log('File not found, might have been already deleted');
+        return; // Return silently as the file is already gone
+      }
+      // Check if the error message indicates success
+      if (error.message === 'File permanently deleted') {
+        console.log('Successfully deleted file:', fileId);
+        return;
+      }
       throw new Error(`Failed to permanently delete file: ${error?.message || 'Unknown error'}`);
     }
   },
@@ -333,21 +344,42 @@ export const fileService = {
       }
       
       // Delete each file permanently
-      const deletePromises = trashedFiles
-        .filter(file => file.id && file.id !== 'undefined') // Filter out invalid IDs
-        .map(async (file) => {
-          try {
-            await this.permanentlyDeleteFile(file.id);
-          } catch (error) {
-            console.error(`Error deleting file ${file.id}:`, error);
-            throw error; // Re-throw to handle the error
-          }
-        });
+      const errors: Error[] = [];
+      let successCount = 0;
       
-      await Promise.all(deletePromises);
+      for (const file of trashedFiles) {
+        if (!file.id || file.id === 'undefined') continue;
+        
+        try {
+          await this.permanentlyDeleteFile(file.id);
+          successCount++;
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('File permanently deleted')) {
+            // This is actually a success
+            successCount++;
+          } else {
+            console.error(`Error deleting file ${file.id}:`, error);
+            errors.push(error as Error);
+          }
+          // Continue with next file
+        }
+      }
       
       // Notify the server that trash has been emptied
-      await axios.delete(API_ENDPOINTS.FILES.EMPTY_TRASH);
+      try {
+        await axios.delete(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.EMPTY_TRASH}`);
+      } catch (error) {
+        console.error('Error notifying server about empty trash:', error);
+        // Don't throw here as files are already deleted
+      }
+
+      // Log the final results
+      console.log(`Trash emptying completed. Successfully deleted ${successCount} files.`);
+      
+      // If there were any actual errors, report them
+      if (errors.length > 0) {
+        throw new Error(`Failed to delete ${errors.length} files. ${successCount} files were successfully deleted.`);
+      }
     } catch (error: any) {
       console.error('Error emptying trash:', error);
       throw new Error(`Failed to empty trash: ${error?.message || 'Unknown error'}`);
