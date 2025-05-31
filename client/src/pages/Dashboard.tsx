@@ -12,6 +12,7 @@ import Sidebar from '../components/layout/Sidebar';
 import FileCard from '../components/file/FileCard';
 import FolderCard from '../components/file/FolderCard';
 import ShareModal from '../components/modals/ShareModal';
+import PreviewModal from '../components/modals/PreviewModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useFiles } from '../context/FileContext';
 import { useNotifications } from '../context/NotificationContext';
@@ -58,6 +59,7 @@ const Dashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Array<FileItem | Folder>>([]);
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   
   // Reset state when switching sections
   useEffect(() => {
@@ -193,28 +195,14 @@ const Dashboard: React.FC = () => {
   
   const handleFileClick = async (file: FileItem) => {
     try {
-      // Handle file click based on type
       if (file.mongodbId) {
         // MongoDB document
         const documentBlob = await mongodbService.getDocument(file.mongodbId);
         const url = URL.createObjectURL(documentBlob);
-        window.open(url, '_blank');
-        URL.revokeObjectURL(url);
-      } else if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-        // Images and PDFs - preview in new tab
-        if (file.url) {
-          window.open(file.url, '_blank');
-        }
+        setPreviewFile({ ...file, url });
       } else {
-        // Other files - download
-        if (file.url) {
-          const link = document.createElement('a');
-          link.href = file.url;
-          link.download = file.name;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
+        // For other files, just show preview
+        setPreviewFile(file);
       }
     } catch (error) {
       console.error('Error handling file click:', error);
@@ -232,11 +220,7 @@ const Dashboard: React.FC = () => {
   
   const handleCreateFolderClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (newFolderName.trim()) {
-      handleCreateFolder(newFolderName.trim());
-      setNewFolderName('');
-      setShowCreateFolder(false);
-    }
+    setShowCreateFolder(true);
   };
   
   return (
@@ -332,7 +316,11 @@ const Dashboard: React.FC = () => {
                 />
                 <button 
                   className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                  onClick={handleCreateFolderClick}
+                  onClick={() => {
+                    handleCreateFolder(newFolderName.trim());
+                    setNewFolderName('');
+                    setShowCreateFolder(false);
+                  }}
                 >
                   Create
                 </button>
@@ -629,6 +617,13 @@ const Dashboard: React.FC = () => {
         onShare={handleShare}
         itemName={itemToShare?.name || ''}
         shareLink={shareLink?.url}
+      />
+
+      {/* Preview Modal */}
+      <PreviewModal
+        isOpen={previewFile !== null}
+        onClose={() => setPreviewFile(null)}
+        file={previewFile}
       />
     </div>
   );

@@ -5,6 +5,7 @@ import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import FileCard from '../components/file/FileCard';
 import FolderCard from '../components/file/FolderCard';
+import PreviewModal from '../components/modals/PreviewModal';
 import { FileItem, Folder } from '../types';
 
 const Starred: React.FC = () => {
@@ -14,6 +15,7 @@ const Starred: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<(FileItem | Folder)[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
 
   // Filter starred items
   const starredFiles = files.filter(file => file.starred);
@@ -31,6 +33,16 @@ const Starred: React.FC = () => {
       setIsSearching(false);
       setSearchResults([]);
     }
+  };
+
+  const handleFileClick = (file: FileItem) => {
+    setPreviewFile(file);
+  };
+
+  const handleFolderClick = (folder: Folder) => {
+    // Handle folder navigation here
+    // For now, we'll just log it
+    console.log('Folder clicked:', folder);
   };
 
   return (
@@ -86,7 +98,7 @@ const Starred: React.FC = () => {
                       'type' in item ? (
                         <FileCard 
                           key={item.id}
-                          file={item}
+                          file={item as FileItem}
                           viewMode="grid"
                           selected={false}
                           onSelect={() => {}}
@@ -95,12 +107,12 @@ const Starred: React.FC = () => {
                           onShare={() => {}}
                           onDelete={() => {}}
                           onDownload={() => {}}
-                          onClick={() => {}}
+                          onClick={() => handleFileClick(item as FileItem)}
                         />
                       ) : (
                         <FolderCard 
                           key={item.id}
-                          folder={item}
+                          folder={item as Folder}
                           viewMode="grid"
                           selected={false}
                           onSelect={() => {}}
@@ -108,7 +120,7 @@ const Starred: React.FC = () => {
                           onRename={() => {}}
                           onShare={() => {}}
                           onDelete={() => {}}
-                          onClick={() => {}}
+                          onClick={() => handleFolderClick(item as Folder)}
                         />
                       )
                     ))}
@@ -137,7 +149,7 @@ const Starred: React.FC = () => {
                           'type' in item ? (
                             <FileCard 
                               key={item.id}
-                              file={item}
+                              file={item as FileItem}
                               viewMode="list"
                               selected={false}
                               onSelect={() => {}}
@@ -146,12 +158,12 @@ const Starred: React.FC = () => {
                               onShare={() => {}}
                               onDelete={() => {}}
                               onDownload={() => {}}
-                              onClick={() => {}}
+                              onClick={() => handleFileClick(item as FileItem)}
                             />
                           ) : (
                             <FolderCard 
                               key={item.id}
-                              folder={item}
+                              folder={item as Folder}
                               viewMode="list"
                               selected={false}
                               onSelect={() => {}}
@@ -159,7 +171,7 @@ const Starred: React.FC = () => {
                               onRename={() => {}}
                               onShare={() => {}}
                               onDelete={() => {}}
-                              onClick={() => {}}
+                              onClick={() => handleFolderClick(item as Folder)}
                             />
                           )
                         ))}
@@ -184,14 +196,14 @@ const Starred: React.FC = () => {
                   <FolderCard 
                     key={folder.id}
                     folder={folder}
-                    viewMode="grid"
+                    viewMode={viewMode}
                     selected={false}
                     onSelect={() => {}}
                     onStar={() => {}}
                     onRename={() => {}}
                     onShare={() => {}}
                     onDelete={() => {}}
-                    onClick={() => {}}
+                    onClick={() => handleFolderClick(folder)}
                   />
                 ))}
                 
@@ -199,7 +211,7 @@ const Starred: React.FC = () => {
                   <FileCard 
                     key={file.id}
                     file={file}
-                    viewMode="grid"
+                    viewMode={viewMode}
                     selected={false}
                     onSelect={() => {}}
                     onStar={() => {}}
@@ -207,7 +219,7 @@ const Starred: React.FC = () => {
                     onShare={() => {}}
                     onDelete={() => {}}
                     onDownload={() => {}}
-                    onClick={() => {}}
+                    onClick={() => handleFileClick(file)}
                   />
                 ))}
               </div>
@@ -235,14 +247,14 @@ const Starred: React.FC = () => {
                       <FolderCard 
                         key={folder.id}
                         folder={folder}
-                        viewMode="list"
+                        viewMode={viewMode}
                         selected={false}
                         onSelect={() => {}}
                         onStar={() => {}}
                         onRename={() => {}}
                         onShare={() => {}}
                         onDelete={() => {}}
-                        onClick={() => {}}
+                        onClick={() => handleFolderClick(folder)}
                       />
                     ))}
                     
@@ -250,7 +262,7 @@ const Starred: React.FC = () => {
                       <FileCard 
                         key={file.id}
                         file={file}
-                        viewMode="list"
+                        viewMode={viewMode}
                         selected={false}
                         onSelect={() => {}}
                         onStar={() => {}}
@@ -258,7 +270,7 @@ const Starred: React.FC = () => {
                         onShare={() => {}}
                         onDelete={() => {}}
                         onDownload={() => {}}
-                        onClick={() => {}}
+                        onClick={() => handleFileClick(file)}
                       />
                     ))}
                   </tbody>
@@ -268,6 +280,13 @@ const Starred: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* Preview Modal */}
+      <PreviewModal
+        isOpen={previewFile !== null}
+        onClose={() => setPreviewFile(null)}
+        file={previewFile}
+      />
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { Grid, List } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import FileCard from '../components/file/FileCard';
+import PreviewModal from '../components/modals/PreviewModal';
 import { useFiles } from '../context/FileContext';
 import { useTheme } from '../context/ThemeContext';
 import { FileItem } from '../types';
@@ -15,6 +16,7 @@ const Recent: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
 
   useEffect(() => {
     loadRecentFiles();
@@ -25,29 +27,11 @@ const Recent: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      try {
-        // Fetch recent files from the service (last 7 days)
-        const files = await fileService.getRecentFiles(7);
-        setRecentFiles(files);
-      } catch (apiError: any) {
-        // If it's a 404, it just means no files were found - that's okay
-        if (apiError?.response?.status === 404) {
-          console.log('No recent files found on server');
-          setRecentFiles([]);
-        } else {
-          // For other errors, show error message
-          throw apiError; // Re-throw to be caught by outer catch
-        }
-      }
+      const files = await fileService.getRecentFiles();
+      setRecentFiles(files);
     } catch (error) {
       console.error('Error loading recent files:', error);
-      // Don't set error message for 404 - it's not really an error
-      if ((error as any)?.response?.status !== 404) {
-        setError('Failed to load recent files');
-      }
-      
-      // Set empty array for recent files when there's an error
-      setRecentFiles([]);
+      setError('Failed to load recent files');
     } finally {
       setIsLoading(false);
     }
@@ -62,40 +46,8 @@ const Recent: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      // Use mock data for now since the API might not be fully implemented
-      // const files = await fileService.getRecentFiles();
-      const files: FileItem[] = [
-        {
-          id: '1',
-          name: 'Document.pdf',
-          type: 'pdf',
-          size: 1024 * 1024 * 2.5, // 2.5MB
-          path: '/Document.pdf',
-          owner: 'user123',
-          shared: false,
-          starred: true,
-          tags: ['work', 'important'],
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          modifiedAt: new Date(Date.now() - 3600000).toISOString()
-        },
-        {
-          id: '2',
-          name: 'Image.jpg',
-          type: 'jpg',
-          size: 1024 * 512, // 512KB
-          path: '/Image.jpg',
-          owner: 'user123',
-          shared: true,
-          starred: false,
-          tags: ['personal'],
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
-          modifiedAt: new Date(Date.now() - 7200000).toISOString()
-        }
-      ];
-      const filteredFiles = files.filter(file => 
-        file.name.toLowerCase().includes(query.toLowerCase())
-      );
-      setRecentFiles(filteredFiles);
+      const files = await fileService.searchFiles(query);
+      setRecentFiles(files.filter(file => 'type' in file) as FileItem[]);
     } catch (error) {
       console.error('Error searching files:', error);
       setError('Failed to search files');
@@ -106,7 +58,7 @@ const Recent: React.FC = () => {
 
   const handleDelete = async (file: FileItem) => {
     try {
-      await deleteFile(file.id);
+      await deleteFile(file.id, false);
       setRecentFiles(prev => prev.filter(f => f.id !== file.id));
     } catch (error) {
       console.error('Error deleting file:', error);
@@ -123,6 +75,10 @@ const Recent: React.FC = () => {
       console.error('Error starring file:', error);
       setError('Failed to star file');
     }
+  };
+
+  const handleFileClick = (file: FileItem) => {
+    setPreviewFile(file);
   };
 
   const [activeSection, setActiveSection] = useState("recent");
@@ -194,13 +150,13 @@ const Recent: React.FC = () => {
                   file={file}
                   viewMode="grid"
                   selected={false}
-                  onSelect={() => {}}
+                  onSelect={() => handleFileClick(file)}
                   onStar={() => handleStar(file)}
                   onRename={() => {}}
                   onShare={() => {}}
                   onDelete={() => handleDelete(file)}
                   onDownload={() => {}}
-                  onClick={() => {}}
+                  onClick={() => handleFileClick(file)}
                 />
               ))}
             </div>
@@ -230,13 +186,13 @@ const Recent: React.FC = () => {
                       file={file}
                       viewMode="list"
                       selected={false}
-                      onSelect={() => {}}
+                      onSelect={() => handleFileClick(file)}
                       onStar={() => handleStar(file)}
                       onRename={() => {}}
                       onShare={() => {}}
                       onDelete={() => handleDelete(file)}
                       onDownload={() => {}}
-                      onClick={() => {}}
+                      onClick={() => handleFileClick(file)}
                     />
                   ))}
                 </tbody>
@@ -245,6 +201,13 @@ const Recent: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* Preview Modal */}
+      <PreviewModal
+        isOpen={previewFile !== null}
+        onClose={() => setPreviewFile(null)}
+        file={previewFile}
+      />
     </div>
   );
 };
