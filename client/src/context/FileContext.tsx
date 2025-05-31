@@ -571,16 +571,19 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(true);
       setError(null);
 
-      if (!fileId) {
-        throw new Error('File ID is required');
+      if (!fileId || fileId === 'undefined' || typeof fileId !== 'string') {
+        const error = new Error('File ID is required and must be a valid string');
+        console.error('Invalid file ID:', { fileId, type: typeof fileId });
+        throw error;
       }
 
       await fileService.restoreFromTrash(fileId);
 
-      // Update the files list
-      setFiles(prev => prev.map(file => 
-        file.id === fileId ? { ...file, inTrash: false } : file
-      ));
+      // Update the files list, checking for both id and _id
+      setFiles(prev => prev.map(file => {
+        const currentId = file.id || file._id;
+        return currentId === fileId ? { ...file, inTrash: false } : file;
+      }));
 
       addNotification({
         type: 'success',

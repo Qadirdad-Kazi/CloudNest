@@ -64,20 +64,32 @@ const Trash: React.FC = () => {
     }
   };
 
-  const handleRestore = async (file: FileItem) => {
+  const handleRestore = async (file: FileItem | any) => {
     try {
+      const fileId = file.id || file._id;
+      if (!file || !fileId || fileId === 'undefined') {
+        console.error('Invalid file object:', file);
+        addNotification({
+          type: 'error',
+          message: `Cannot restore file: Invalid file ID`,
+        });
+        return;
+      }
+
       setIsLoading(true);
-      await restoreFromTrash(file.id);
-      setTrashedFiles(prev => prev.filter(f => f.id !== file.id));
+      console.log('Attempting to restore file:', { id: fileId, file });
+      await restoreFromTrash(fileId.toString());
+      setTrashedFiles(prev => prev.filter(f => (f.id || (f as any)._id) !== fileId));
       addNotification({
         type: 'success',
         message: `Restored ${file.name}`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error restoring file:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
       addNotification({
         type: 'error',
-        message: `Failed to restore ${file.name}`,
+        message: `Failed to restore ${file.name}: ${errorMessage}`,
       });
     } finally {
       setIsLoading(false);
@@ -224,7 +236,7 @@ const Trash: React.FC = () => {
                     onRename={() => {}}
                     onShare={() => {}}
                     onDelete={() => handleDelete(file)}
-                    onRestore={() => handleRestore(file)}
+                    onRestore={handleRestore}
                     onDownload={() => {}}
                     onClick={() => {}}
                     isInTrash={true}
@@ -272,7 +284,7 @@ const Trash: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {new Date(file.modifiedAt).toLocaleDateString()}
+                            {new Date(file.createdAt).toLocaleDateString()}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

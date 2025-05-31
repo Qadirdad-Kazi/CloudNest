@@ -277,7 +277,11 @@ const FileCard: React.FC<FileCardProps> = ({
                   <>
                     <button 
                       key={`restore-${file.id}`}
-                      onClick={handleRestore} 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onRestore && onRestore(file);
+                      }}
                       className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-green-500"
                     >
                       <span className="flex items-center">

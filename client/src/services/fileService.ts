@@ -259,16 +259,13 @@ export const fileService = {
       }
 
       console.log('Restoring file from trash:', fileId);
-      const response = await axios.post(`${API_ENDPOINTS.FILES.RESTORE}/${fileId}`);
-      
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to restore file');
-      }
-
-      console.log('File restored successfully:', fileId);
+      const id = fileId.toString(); // Convert to string in case it's an ObjectId
+      await axios.post(`${API_ENDPOINTS.FILES.RESTORE}/${id}`);
+      console.log('File restored successfully:', id);
     } catch (error: any) {
       console.error('Error restoring file:', error);
-      throw new Error(`Failed to restore file: ${error?.message || 'Unknown error'}`);
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+      throw new Error(`Failed to restore file: ${errorMessage}`);
     }
   },
 

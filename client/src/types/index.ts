@@ -10,7 +10,8 @@ export interface User {
 }
 
 export interface FileItem {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
   type: string;
   size: number;
