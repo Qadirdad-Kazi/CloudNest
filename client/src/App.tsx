@@ -17,6 +17,8 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import Suggestions from './pages/Suggestions';
 import AdminSuggestions from './pages/AdminSuggestions';
+import { AuthProvider } from './contexts/AuthContext';
+import { DarkModeProvider } from './contexts/DarkModeContext';
 
 // Loading component
 const LoadingSpinner: React.FC = () => (
@@ -58,38 +60,42 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => {
   return (
     <Router>
-      <ThemeProvider>
-        <NotificationProvider>
-          <FileProvider>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-              <NotificationContainer />
-              <Routes>
-              {/* Public routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              
-              {/* Protected routes */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/starred" element={<ProtectedRoute><Starred /></ProtectedRoute>} />
-              <Route path="/shared" element={<ProtectedRoute><Shared /></ProtectedRoute>} />
-              <Route path="/recent" element={<ProtectedRoute><Recent /></ProtectedRoute>} />
-              <Route path="/trash" element={<ProtectedRoute><Trash /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-              <Route path="/suggestions" element={<ProtectedRoute><Suggestions /></ProtectedRoute>} />
-              
-              {/* Admin routes */}
-              <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-              <Route path="/admin/suggestions" element={<AdminRoute><AdminSuggestions /></AdminRoute>} />
-              
-              {/* Catch all route */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-            </div>
-          </FileProvider>
-        </NotificationProvider>
-      </ThemeProvider>
+      <AuthProvider>
+        <DarkModeProvider>
+          <ThemeProvider>
+            <NotificationProvider>
+              <FileProvider>
+                <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                  <NotificationContainer />
+                  <Routes>
+                  {/* Public routes */}
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
+                  
+                  {/* Protected routes */}
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                  <Route path="/starred" element={<ProtectedRoute><Starred /></ProtectedRoute>} />
+                  <Route path="/shared" element={<ProtectedRoute><Shared /></ProtectedRoute>} />
+                  <Route path="/recent" element={<ProtectedRoute><Recent /></ProtectedRoute>} />
+                  <Route path="/trash" element={<ProtectedRoute><Trash /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                  <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                  <Route path="/suggestions" element={<ProtectedRoute><Suggestions /></ProtectedRoute>} />
+                  
+                  {/* Admin routes */}
+                  <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+                  <Route path="/admin/suggestions" element={<AdminRoute><AdminSuggestions /></AdminRoute>} />
+                  
+                  {/* Catch all route */}
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+                </div>
+              </FileProvider>
+            </NotificationProvider>
+          </ThemeProvider>
+        </DarkModeProvider>
+      </AuthProvider>
     </Router>
   );
 }
