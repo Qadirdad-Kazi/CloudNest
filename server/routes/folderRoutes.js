@@ -5,7 +5,7 @@ import Folder from '../models/Folder.js';
 
 const router = express.Router();
 
-// All routes require authentication
+// Apply authentication middleware to all routes
 router.use(authenticate);
 
 // Get all folders for the current user at the specified path
@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
 });
 
 // Create a new folder
-router.post('/', async (req, res) => {
+router.post('/create', async (req, res) => {
   try {
     const { name, path: parentPath = '/' } = req.body;
     

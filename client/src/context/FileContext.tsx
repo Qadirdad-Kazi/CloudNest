@@ -5,8 +5,6 @@ import { useNotifications } from './NotificationContext';
 import { fileService } from '../services/fileService';
 import { folderService } from '../services/folderService';
 import { shareLinkService } from '../services/shareLinkService';
-import axios from '../utils/axios';
-import { API_CONFIG, API_ENDPOINTS } from '../config/api';
 
 // Define the shape of our context
 interface FileContextType {
@@ -77,7 +75,7 @@ export const useFiles = () => useContext(FileContext);
 
 // Provider component
 export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth(); // Renamed to currentUser to avoid unused variable warning
   const { addNotification } = useNotifications();
   
   // State variables
@@ -397,6 +395,21 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Load files and folders for the current path
   const loadFiles = async () => {
+    // Check if we've already tried loading files recently to prevent loops
+    const lastLoadAttempt = localStorage.getItem('lastLoadFilesAttempt');
+    const lastPath = localStorage.getItem('lastLoadFilesPath');
+    const now = Date.now();
+    
+    // Only prevent loading if we're trying to load the same path within 5 seconds
+    if (lastLoadAttempt && lastPath === currentPath && (now - parseInt(lastLoadAttempt)) < 5000) {
+      console.log('Skipping files load to prevent loop');
+      return;
+    }
+    
+    // Record this attempt
+    localStorage.setItem('lastLoadFilesAttempt', now.toString());
+    localStorage.setItem('lastLoadFilesPath', currentPath);
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -412,16 +425,32 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Calculate total storage used from the files we have
         const totalSize = filesResponse.reduce((total, file) => total + file.size, 0);
         setStorageUsed(totalSize);
+        
+        // Mark successful API call
+        localStorage.setItem('filesApiAvailable', 'true');
       } catch (fileError) {
         console.error('Error loading files from server:', fileError);
         setFiles([]);
+        
+        // Mark API as unavailable to avoid unnecessary calls
+        const error = fileError as Error; // Type assertion for TypeScript
+        if (error.message === 'Network Error') {
+          localStorage.setItem('filesApiAvailable', 'false');
+        }
       }
       
       // Get folders for the current path from the server
       try {
-        const foldersResponse = await folderService.getFolders(currentPath);
-        console.log('Folders loaded:', foldersResponse);
-        setFolders(Array.isArray(foldersResponse) ? foldersResponse : []);
+        // Only try to get folders if files API was successful
+        if (localStorage.getItem('filesApiAvailable') === 'true') {
+          const foldersResponse = await folderService.getFolders(currentPath);
+          console.log('Folders loaded:', foldersResponse);
+          setFolders(Array.isArray(foldersResponse) ? foldersResponse : []);
+        } else {
+          // Skip folder loading if files API failed with network error
+          console.log('Skipping folder loading due to previous network error');
+          setFolders([]);
+        }
       } catch (folderError) {
         console.error('Error loading folders from server:', folderError);
         setFolders([]);
@@ -430,10 +459,15 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       console.error('Error loading files and folders:', error);
       setError('Failed to load files and folders');
-      addNotification({
-        type: 'error',
-        message: 'Failed to load files and folders',
-      });
+      
+      // Only show notification for non-network errors to avoid spam
+      const err = error as Error; // Type assertion for TypeScript
+      if (err.message !== 'Network Error') {
+        addNotification({
+          type: 'error',
+          message: 'Failed to load files and folders',
+        });
+      }
     } finally {
       setIsLoading(false);
     }

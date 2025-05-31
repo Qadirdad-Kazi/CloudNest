@@ -31,6 +31,20 @@ const fileSchema = new mongoose.Schema({
     enum: ['images', 'documents', 'videos', 'audio', 'archives', 'code', 'others'],
     required: true,
   },
+  // Cloud storage fields
+  cloudProvider: {
+    type: String,
+    enum: ['cloudinary', 'mongodb'],
+    required: true
+  },
+  cloudId: {
+    type: String,
+    required: true
+  },
+  url: {
+    type: String,
+    required: true
+  },
   isStarred: {
     type: Boolean,
     default: false,

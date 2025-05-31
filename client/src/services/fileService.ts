@@ -4,6 +4,10 @@ import { cloudinaryService } from './cloudinaryService';
 import { mongodbService } from './mongodbService';
 import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 
+// Constants for file upload
+const UPLOAD_TIMEOUT = 120000; // 2 minutes
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 /**
  * File service for handling all file operations
  * Uses cloud storage (Cloudinary for images, MongoDB for documents)
@@ -15,9 +19,8 @@ export const fileService = {
    * @returns Object with validation result and optional error message
    */
   validateFile(file: File): { valid: boolean; error?: string } {
-    // Check file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
       return { 
         valid: false, 
         error: `File size exceeds maximum allowed (10MB). Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB` 
@@ -42,7 +45,7 @@ export const fileService = {
       };
     }
     
-    // Sanitize filename (basic check for suspicious patterns)
+    // Sanitize filename
     if (file.name.includes('../') || file.name.includes('..\\') || 
         file.name.includes('/') || file.name.includes('\\') ||
         file.name.includes('..') || file.name.includes('~')) {
@@ -68,99 +71,82 @@ export const fileService = {
   },
   
   /**
-   * Uploads a file with progress tracking
+   * Uploads a file to the server
    * @param file The file to upload
-   * @param parentPath The parent path of the file
-   * @param onProgress Optional callback for progress updates
-   * @returns Promise with the uploaded file
+   * @param parentPath The parent directory path
+   * @param onProgress Optional progress callback
+   * @returns Promise<FileItem>
    */
   async uploadFile(file: File, parentPath: string = '/', onProgress?: (progress: number) => void): Promise<FileItem> {
-    // Validate file before upload
+    // Validate file first
     const validation = this.validateFile(file);
     if (!validation.valid) {
-      throw new Error(validation.error || 'Invalid file');
+      throw new Error(validation.error);
     }
-    
-    // Determine file type
-    const fileType = file.name.split('.').pop()?.toLowerCase() || 'unknown';
-    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(fileType);
-    const isDocument = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'].includes(fileType);
-    
-    // Base FileItem structure
-    const baseFileItem: Partial<FileItem> = {
-      name: file.name,
-      path: parentPath,
-      type: fileType,
-      size: file.size,
-      starred: false,
-      shared: false,
-      createdAt: new Date().toISOString(),
-      modifiedAt: new Date().toISOString(),
-      owner: 'current-user', // This will be replaced by the server with the actual user ID
-      tags: []
-    };
-    
+
+    const isImage = file.type.startsWith('image/');
+    const fileType = file.name.split('.').pop()?.toLowerCase() || '';
+
     try {
-      // Handle based on file type
+      // For images, try Cloudinary upload first
       if (isImage) {
-        // Upload image to Cloudinary with progress tracking
-        const imageUrl = await cloudinaryService.uploadImage(file, onProgress);
-        
-        // Save file metadata to database
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('path', parentPath);
-        formData.append('type', fileType);
-        formData.append('cloudinaryUrl', imageUrl);
-        
-        // Send to server to save in database
-        const response = await axios.post(API_ENDPOINTS.FILES.UPLOAD, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          },
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total && onProgress) {
-              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              onProgress(percentCompleted > 95 ? 95 : percentCompleted);
+        try {
+          // Upload image to Cloudinary with progress tracking
+          const imageUrl = await cloudinaryService.uploadImage(file, onProgress);
+          
+          // Save file metadata to database
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('path', parentPath);
+          formData.append('type', fileType);
+          formData.append('cloudinaryUrl', imageUrl);
+          
+          // Send to server with increased timeout
+          const response = await axios.post(API_ENDPOINTS.FILES.UPLOAD, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            },
+            timeout: UPLOAD_TIMEOUT,
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total && onProgress) {
+                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                onProgress(percentCompleted > 95 ? 95 : percentCompleted);
+              }
             }
-          }
-        });
-        
-        if (onProgress) onProgress(100);
-        return response.data;
-      } else if (isDocument) {
-        // Upload document to MongoDB with progress tracking
-        return await mongodbService.uploadDocument(file, baseFileItem, onProgress);
-      } else {
-        // For other file types, upload to server
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('path', parentPath);
-        formData.append('type', fileType);
-        
-        // Track progress if callback provided
-        if (onProgress) onProgress(10); // Start progress
-        
-        // Send to server
-        const response = await axios.post(API_ENDPOINTS.FILES.UPLOAD, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          },
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total && onProgress) {
-              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              onProgress(percentCompleted > 95 ? 95 : percentCompleted);
-            }
-          }
-        });
-        
-        // Ensure progress is set to 100%
-        if (onProgress) onProgress(100);
-        return response.data;
+          });
+          
+          if (onProgress) onProgress(100);
+          return response.data;
+        } catch (error: unknown) {
+          console.error('Error uploading to Cloudinary:', error);
+          throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
       }
-    } catch (error: any) {
+
+      // For non-image files, upload directly to server
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('path', parentPath);
+      formData.append('type', fileType);
+
+      const response = await axios.post(API_ENDPOINTS.FILES.UPLOAD, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        timeout: UPLOAD_TIMEOUT,
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total && onProgress) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percentCompleted > 95 ? 95 : percentCompleted);
+          }
+        }
+      });
+
+      if (onProgress) onProgress(100);
+      return response.data;
+    } catch (error: unknown) {
       console.error('Error in file upload process:', error);
-      throw new Error(`Failed to upload file: ${error?.message || 'Unknown error'}`);
+      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   },
 

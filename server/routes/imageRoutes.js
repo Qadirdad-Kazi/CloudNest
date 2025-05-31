@@ -2,12 +2,7 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { Readable } from 'stream';
 
 const router = express.Router();
 
@@ -30,43 +25,23 @@ console.log('Cloudinary configuration:', {
   api_secret: cloudinary.config().api_secret ? 'Set (hidden)' : 'Not set'
 });
 
-// Sanitize filename to prevent path traversal attacks
-const sanitizeFilename = (filename) => {
-  return filename
-    .replace(/[^a-zA-Z0-9_.-]/g, '_') // Replace any character that's not alphanumeric, underscore, dot, or hyphen
-    .replace(/\.\./g, '_'); // Replace double dots to prevent directory traversal
-};
-
-// Configure multer for temporary file storage with enhanced security
-const upload = multer({ 
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const uploadDir = path.join(__dirname, '../temp-uploads');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-      cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-      // Sanitize filename and use timestamp to ensure uniqueness
-      const sanitizedName = sanitizeFilename(file.originalname);
-      cb(null, `${Date.now()}-${sanitizedName}`);
-    }
-  }),
-  limits: { 
+// Configure multer for memory storage
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: {
     fileSize: process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 5 * 1024 * 1024, // 5MB limit for images
-    files: 1 // Allow only one file per request
+    files: 1
   },
   fileFilter: function (req, file, cb) {
-    // Strict content type validation for images
     const allowedTypes = [
-      'image/jpeg', 
-      'image/png', 
-      'image/gif', 
-      'image/webp', 
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
       'image/svg+xml'
     ];
-    
+
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
@@ -82,20 +57,28 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Get the file path
-    const filePath = req.file.path;
-    
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(filePath, {
-      folder: 'CloudNest',
-      resource_type: 'auto'
+    // Upload to Cloudinary using buffer
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'CloudNest',
+          resource_type: 'auto'
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+
+      // Convert buffer to stream and pipe to Cloudinary
+      const bufferStream = new Readable();
+      bufferStream.push(req.file.buffer);
+      bufferStream.push(null);
+      bufferStream.pipe(uploadStream);
     });
-    
-    // Delete the temporary file
-    fs.unlinkSync(filePath);
-    
+
     // Return the Cloudinary URL
-    res.json({ 
+    res.json({
       url: result.secure_url,
       public_id: result.public_id,
       resource_type: result.resource_type

@@ -3,8 +3,7 @@ const checkRequiredEnvVars = () => {
   const requiredVars = [
     'VITE_API_URL',
     'VITE_CLOUDINARY_CLOUD_NAME',
-    'VITE_CLOUDINARY_API_KEY',
-    'VITE_CLOUDINARY_UPLOAD_URL'
+    'VITE_CLOUDINARY_API_KEY'
   ];
   
   const missingVars = requiredVars.filter(varName => !import.meta.env[varName]);
@@ -20,14 +19,13 @@ checkRequiredEnvVars();
 
 // API configuration using only environment variables
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL,
+  BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
   CLOUDINARY: {
     CLOUD_NAME: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
     API_KEY: import.meta.env.VITE_CLOUDINARY_API_KEY,
-    UPLOAD_URL: import.meta.env.VITE_CLOUDINARY_UPLOAD_URL
+    UPLOAD_URL: `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`
   },
-  TIMEOUT: parseInt(import.meta.env.VITE_API_TIMEOUT || '30000'), // 30 seconds default
-  IS_PRODUCTION: import.meta.env.VITE_NODE_ENV === 'production'
+  TIMEOUT: 120000 // 2 minutes
 };
 
 // API endpoints
@@ -72,14 +70,17 @@ export type ApiEndpoints = {
     CREATE: string;
     DELETE: string;
     LIST: string;
+    UPDATE: string;
   };
-  SHARE_LINKS: string;
-  DOCUMENTS: {
-    UPLOAD: string;
-    GET: string;
+  SHARES: {
+    LIST: string;
+    CREATE: string;
+    DELETE: string;
+    UPDATE: string;
   };
   USERS: {
     PROFILE: string;
+    SETTINGS: string;
     AVATAR: string;
     STORAGE: string;
   };
@@ -92,58 +93,61 @@ export type ApiEndpoints = {
 
 export const API_ENDPOINTS: ApiEndpoints = {
   AUTH: {
-    LOGIN: `${API_CONFIG.BASE_URL}/auth/login`,
-    REGISTER: `${API_CONFIG.BASE_URL}/auth/register`,
-    LOGOUT: `${API_CONFIG.BASE_URL}/auth/logout`,
-    REFRESH: `${API_CONFIG.BASE_URL}/auth/refresh`,
-    VERIFY: `${API_CONFIG.BASE_URL}/auth/verify`,
-    FORGOT_PASSWORD: `${API_CONFIG.BASE_URL}/auth/forgot-password`,
-    RESET_PASSWORD: `${API_CONFIG.BASE_URL}/auth/reset-password`,
+    LOGIN: `/auth/login`,
+    REGISTER: `/auth/register`,
+    LOGOUT: `/auth/logout`,
+    REFRESH: `/auth/refresh`,
+    VERIFY: `/auth/verify`,
+    FORGOT_PASSWORD: `/auth/forgot-password`,
+    RESET_PASSWORD: `/auth/reset-password`
   },
   FILES: {
-    LIST: `${API_CONFIG.BASE_URL}/files`,
-    UPLOAD: `${API_CONFIG.BASE_URL}/files/upload`,
-    DOWNLOAD: `${API_CONFIG.BASE_URL}/files/download`,
-    SHARE: `${API_CONFIG.BASE_URL}/files/share`,
-    STAR: `${API_CONFIG.BASE_URL}/files/star`,
-    RECENT: `${API_CONFIG.BASE_URL}/files/recent`,
-    TRASH: `${API_CONFIG.BASE_URL}/files/trash`,
-    EMPTY_TRASH: `${API_CONFIG.BASE_URL}/files/trash/empty`,
-    RESTORE: `${API_CONFIG.BASE_URL}/files/restore`,
-    MOVE_TO_TRASH: `${API_CONFIG.BASE_URL}/files/trash`, // Endpoint for moving files to trash
-    DELETE: `${API_CONFIG.BASE_URL}/files`, // Endpoint for deleting files
-    UPDATE: `${API_CONFIG.BASE_URL}/files` // Endpoint for updating files
+    LIST: `/files`,
+    UPLOAD: `/files/upload`,
+    DOWNLOAD: `/files/download`,
+    DELETE: `/files/delete`,
+    MOVE_TO_TRASH: `/files/trash`,
+    RESTORE: `/files/restore`,
+    EMPTY_TRASH: `/files/trash/empty`,
+    STAR: `/files/star`,
+    SHARE: `/files/share`,
+    UPDATE: `/files/update`,
+    RECENT: `/files/recent`,
+    TRASH: `/files/trash`
   },
   FEEDBACK: {
-    SUGGESTIONS: `${API_CONFIG.BASE_URL}/feedback/suggestions`,
-    ADMIN_SUGGESTIONS: `${API_CONFIG.BASE_URL}/feedback/admin/suggestions`,
+    SUGGESTIONS: `/feedback/suggestions`,
+    ADMIN_SUGGESTIONS: `/feedback/admin/suggestions`,
   },
   ADMIN: {
-    DASHBOARD: `${API_CONFIG.BASE_URL}/admin/dashboard`,
-    USERS: `${API_CONFIG.BASE_URL}/admin/users`,
-    STORAGE_ANALYTICS: `${API_CONFIG.BASE_URL}/admin/analytics/storage`,
-    ACTIVITY_ANALYTICS: `${API_CONFIG.BASE_URL}/admin/analytics/activity`,
-    SYSTEM_HEALTH: `${API_CONFIG.BASE_URL}/admin/system/health`,
-    SYSTEM_METRICS: `${API_CONFIG.BASE_URL}/admin/system/metrics`,
+    DASHBOARD: `/admin/dashboard`,
+    USERS: `/admin/users`,
+    STORAGE_ANALYTICS: `/admin/analytics/storage`,
+    ACTIVITY_ANALYTICS: `/admin/analytics/activity`,
+    SYSTEM_HEALTH: `/admin/system/health`,
+    SYSTEM_METRICS: `/admin/system/metrics`,
   },
   FOLDERS: {
-    CREATE: `${API_CONFIG.BASE_URL}/folders`,
-    DELETE: `${API_CONFIG.BASE_URL}/folders/delete`,
-    LIST: `${API_CONFIG.BASE_URL}/folders`
+    CREATE: `/folders/create`,
+    DELETE: `/folders/delete`,
+    LIST: `/folders`,
+    UPDATE: `/folders/update`
   },
-  SHARE_LINKS: `${API_CONFIG.BASE_URL}/share-links`,
-  DOCUMENTS: {
-    UPLOAD: `${API_CONFIG.BASE_URL}/documents/upload`,
-    GET: `${API_CONFIG.BASE_URL}/documents`
+  SHARES: {
+    LIST: `/shares`,
+    CREATE: `/shares/create`,
+    DELETE: `/shares/delete`,
+    UPDATE: `/shares/update`
   },
   USERS: {
-    PROFILE: `${API_CONFIG.BASE_URL}/users/profile`,
-    AVATAR: `${API_CONFIG.BASE_URL}/users/avatar`,
-    STORAGE: `${API_CONFIG.BASE_URL}/users/storage`
+    PROFILE: `/users/profile`,
+    SETTINGS: `/users/settings`,
+    AVATAR: `/users/avatar`,
+    STORAGE: `/users/storage`
   },
   NOTIFICATIONS: {
-    LIST: `${API_CONFIG.BASE_URL}/notifications`,
-    UNREAD: `${API_CONFIG.BASE_URL}/notifications/unread`,
-    MARK_READ: `${API_CONFIG.BASE_URL}/notifications/read`
+    LIST: `/notifications`,
+    UNREAD: `/notifications/unread`,
+    MARK_READ: `/notifications/read`
   }
 };

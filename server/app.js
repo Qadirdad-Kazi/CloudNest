@@ -1,7 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import fileUpload from 'express-fileupload';
 import path from 'path';
 import { promises as fs } from 'fs';
 import dotenv from 'dotenv';
@@ -78,7 +77,7 @@ const parseOrigins = () => {
   }
   return process.env.NODE_ENV === 'production'
     ? [process.env.CLIENT_URL] // Production client URL from env
-    : ['http://localhost:5173', 'http://localhost:3000']; // Default development URLs
+    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174']; // Default development URLs
 };
 
 // Parse allowed methods from environment variable
@@ -94,7 +93,7 @@ const parseHeaders = () => {
   if (process.env.ALLOWED_HEADERS) {
     return process.env.ALLOWED_HEADERS.split(',').map(header => header.trim());
   }
-  return ['Content-Type', 'Authorization']; // Default headers
+  return ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Request-Method', 'Access-Control-Request-Headers']; // Default headers
 };
 
 // Get max file size from environment variable
@@ -102,30 +101,29 @@ const getMaxFileSize = () => {
   return parseInt(process.env.MAX_FILE_SIZE || '52428800'); // Default to 50MB
 };
 
-// Middleware
-app.use(cors({
-  origin: parseOrigins(),
+// Configure CORS
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.ALLOWED_ORIGINS?.split(',') || ['https://cloudnest.vercel.app']
+    : ['http://localhost:5173'],
+  credentials: true,
   methods: parseMethods(),
-  allowedHeaders: parseHeaders(),
-  credentials: true // Allow cookies to be sent with requests
-}));
+  maxAge: 600 // 10 minutes
+};
+
+app.use(cors(corsOptions));
+app.use(cookieParser());
 app.use(express.json());
-app.use(cookieParser()); // Parse cookies
-app.use(fileUpload({
-  createParentPath: true,
-  limits: { 
-    fileSize: getMaxFileSize()
-  },
-}));
+app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes
+// Mount API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/folders', folderRoutes);
-app.use('/api/share-links', shareLinkRoutes);
+app.use('/api/shares', shareLinkRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/documents', documentRoutes);

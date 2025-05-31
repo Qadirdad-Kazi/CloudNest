@@ -4,22 +4,56 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { GridFSBucket } from 'mongodb';
+import mongoose from 'mongoose';
+import cloudinary from '../config/cloudinary.js';
+import { Readable } from 'stream';
 import File from '../models/File.js';
 
 const router = express.Router();
 
-// Set up multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = 'uploads/';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, `${uuidv4()}-${file.originalname}`);
+// Apply authentication middleware to all routes
+router.use(authenticate);
+
+// Set up multer for memory storage (files will be in memory before being sent to cloud)
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 10485760, // 10MB default
+    fieldSize: 25 * 1024 * 1024, // 25MB field size limit
+    files: 1 // Allow only one file per request
   }
+}).single('file');
+
+// Wrap multer middleware to handle errors
+const handleUpload = (req, res, next) => {
+  upload(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ 
+          message: `File too large. Maximum size is ${process.env.MAX_FILE_SIZE / (1024 * 1024)}MB` 
+        });
+      }
+      if (err.code === 'LIMIT_FIELD_VALUE') {
+        return res.status(400).json({ 
+          message: 'Field value too large' 
+        });
+      }
+      return res.status(400).json({ message: err.message });
+    }
+    if (err) {
+      return res.status(500).json({ message: 'Error uploading file' });
+    }
+    next();
+  });
+};
+
+// Initialize GridFS bucket
+let bucket;
+mongoose.connection.once('open', () => {
+  bucket = new GridFSBucket(mongoose.connection.db);
+  console.log('GridFS bucket initialized');
 });
 
 // Sanitize filename to prevent path traversal attacks
@@ -28,42 +62,6 @@ const sanitizeFilename = (filename) => {
     .replace(/[^a-zA-Z0-9_.-]/g, '_') // Replace any character that's not alphanumeric, underscore, dot, or hyphen
     .replace(/\.\./g, '_'); // Replace double dots to prevent directory traversal
 };
-
-const upload = multer({ 
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const uploadDir = 'uploads/';
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-      cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-      // Sanitize filename and use UUID to ensure uniqueness
-      const sanitizedName = sanitizeFilename(file.originalname);
-      cb(null, `${uuidv4()}-${sanitizedName}`);
-    }
-  }),
-  limits: {
-    fileSize: process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 10485760, // 10MB default
-    files: 1 // Allow only one file per request
-  },
-  fileFilter: function (req, file, cb) {
-    // Strict content type validation
-    const allowedTypes = process.env.ALLOWED_FILE_TYPES ? 
-      process.env.ALLOWED_FILE_TYPES.split(',') : 
-      ['image/jpeg', 'image/png', 'application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`Invalid file type. Allowed types: ${allowedTypes.join(', ')}`));
-    }
-  }
-});
-
-// All routes require authentication
-router.use(authenticate);
 
 // Get all files (non-trashed) for the current user at the specified path
 router.get('/', async (req, res) => {
@@ -89,7 +87,8 @@ router.get('/', async (req, res) => {
       shared: false, // This would need to be determined by checking ShareLinks
       createdAt: file.createdAt,
       modifiedAt: file.modifiedAt,
-      owner: file.userId
+      owner: file.userId,
+      url: file.url
     }));
     
     res.json(formattedFiles);
@@ -100,18 +99,34 @@ router.get('/', async (req, res) => {
 });
 
 // Upload a file
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', handleUpload, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // Determine file category based on mimetype
+    // Check if MongoDB is connected for non-image files
+    if (!bucket && req.file.mimetype.startsWith('image/') === false) {
+      return res.status(503).json({ message: 'MongoDB GridFS is not initialized yet. Please try again in a moment.' });
+    }
+
+    console.log('File upload request received:', {
+      file: req.file,
+      body: req.body,
+      user: req.user._id
+    });
+
+    // Determine file category and storage provider based on mimetype
     const mimeType = req.file.mimetype;
     let category = 'others';
+    let cloudProvider = 'mongodb';
+    let cloudId = '';
+    let url = '';
     
+    // Categorize file
     if (mimeType.startsWith('image/')) {
       category = 'images';
+      cloudProvider = 'cloudinary';
     } else if (mimeType.startsWith('video/')) {
       category = 'videos';
     } else if (mimeType.startsWith('audio/')) {
@@ -124,6 +139,50 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       category = 'code';
     }
 
+    // Upload file to appropriate cloud storage
+    if (cloudProvider === 'cloudinary') {
+      // Upload to Cloudinary
+      const cloudinaryUpload = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'cloudnest',
+            resource_type: 'auto'
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+
+        // Convert buffer to stream and pipe to Cloudinary
+        const bufferStream = new Readable();
+        bufferStream.push(req.file.buffer);
+        bufferStream.push(null);
+        bufferStream.pipe(uploadStream);
+      });
+
+      cloudId = cloudinaryUpload.public_id;
+      url = cloudinaryUpload.secure_url;
+    } else {
+      // Upload to MongoDB GridFS
+      const filename = `${Date.now()}-${req.file.originalname}`;
+      const uploadStream = bucket.openUploadStream(filename, {
+        contentType: req.file.mimetype
+      });
+
+      await new Promise((resolve, reject) => {
+        const bufferStream = new Readable();
+        bufferStream.push(req.file.buffer);
+        bufferStream.push(null);
+        bufferStream.pipe(uploadStream)
+          .on('error', reject)
+          .on('finish', resolve);
+      });
+
+      cloudId = uploadStream.id.toString();
+      url = `/api/files/download/${cloudId}`;
+    }
+
     // Create new file document in database
     const newFile = new File({
       userId: req.user._id,
@@ -133,10 +192,16 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       path: `${req.body.path || '/'}${req.file.originalname}`,
       parentPath: req.body.path || '/',
       category,
-      url: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+      cloudProvider,
+      cloudId,
+      url
     });
 
+    console.log('Creating new file document:', newFile);
+
     await newFile.save();
+
+    console.log('File document created successfully:', newFile._id);
 
     // Format response to match client expectations
     const fileResponse = {
@@ -156,7 +221,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     res.status(201).json(fileResponse);
   } catch (error) {
     console.error('Error uploading file:', error);
-    res.status(500).json({ message: 'Failed to upload file' });
+    res.status(500).json({ message: 'Failed to upload file', error: error.message });
   }
 });
 
@@ -489,6 +554,34 @@ router.delete('/trash/empty', async (req, res) => {
   } catch (error) {
     console.error('Error emptying trash:', error);
     res.status(500).json({ message: 'Failed to empty trash' });
+  }
+});
+
+// Add download route for MongoDB stored files
+router.get('/download/:fileId', async (req, res) => {
+  try {
+    if (!bucket) {
+      return res.status(503).json({ message: 'MongoDB GridFS is not initialized yet. Please try again in a moment.' });
+    }
+
+    const file = await File.findOne({ _id: req.params.fileId, userId: req.user._id });
+    
+    if (!file) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    if (file.cloudProvider === 'cloudinary') {
+      return res.redirect(file.url);
+    }
+
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(file.cloudId));
+    res.set('Content-Type', file.type);
+    res.set('Content-Disposition', `attachment; filename="${file.name}"`);
+    
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    res.status(500).json({ message: 'Failed to download file' });
   }
 });
 

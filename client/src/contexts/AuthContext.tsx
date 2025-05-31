@@ -75,9 +75,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
+        } else {
+          // Clear user if not authenticated
+          setUser(null);
         }
       } catch (error) {
         console.error('Error checking authentication status:', error);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
