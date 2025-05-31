@@ -42,7 +42,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick 
 
 interface SidebarProps {
   activeItem: string;
-  onItemClick: Dispatch<SetStateAction<string>>;
+  onItemClick?: (item: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
@@ -128,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
           active={activeItem === 'dashboard' || location.pathname === '/dashboard'}
           onClick={() => {
             navigate('/dashboard');
-            onItemClick('dashboard');
+            onItemClick && onItemClick('dashboard');
           }}
         />
         <SidebarItem 
@@ -138,7 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
           active={activeItem === 'starred' || location.pathname === '/starred'}
           onClick={() => {
             navigate('/starred');
-            onItemClick('starred');
+            onItemClick && onItemClick('starred');
           }}
         />
         <SidebarItem 
@@ -148,7 +148,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
           active={activeItem === 'shared' || location.pathname === '/shared'}
           onClick={() => {
             navigate('/shared');
-            onItemClick('shared');
+            onItemClick && onItemClick('shared');
           }}
         />
         <SidebarItem 
@@ -158,7 +158,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
           active={activeItem === 'recent' || location.pathname === '/recent'}
           onClick={() => {
             navigate('/recent');
-            onItemClick('recent');
+            onItemClick && onItemClick('recent');
           }}
         />
         <SidebarItem 
@@ -168,7 +168,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
           active={activeItem === 'trash' || location.pathname === '/trash'}
           onClick={() => {
             navigate('/trash');
-            onItemClick('trash');
+            onItemClick && onItemClick('trash');
           }}
         />
         
@@ -215,7 +215,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
           active={activeItem === 'suggestions' || location.pathname === '/suggestions'}
           onClick={() => {
             navigate('/suggestions');
-            onItemClick('suggestions');
+            onItemClick && onItemClick('suggestions');
           }}
         />
       </div>

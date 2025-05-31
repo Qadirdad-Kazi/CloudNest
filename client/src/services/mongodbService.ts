@@ -39,7 +39,7 @@ export const mongodbService = {
       
       // Send the document to the server
       const response = await axios.post(
-        API_ENDPOINTS.DOCUMENTS.UPLOAD,
+        API_ENDPOINTS.FILES.MONGODB.UPLOAD,
         formData, 
         {
           headers: {
@@ -76,25 +76,58 @@ export const mongodbService = {
   // Get a document from MongoDB
   async getDocument(documentId: string): Promise<Blob> {
     try {
-      const response = await axios.get(`${API_ENDPOINTS.DOCUMENTS.GET}/${documentId}`, {
+      if (!documentId || documentId === 'undefined') {
+        throw new Error('Document ID is required');
+      }
+
+      const response = await axios.get(`${API_ENDPOINTS.FILES.MONGODB.GET}/${documentId}`, {
         responseType: 'blob',
         withCredentials: true
       });
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting document:', error);
-      throw new Error('Failed to retrieve document');
+      throw new Error(`Failed to retrieve document: ${error?.message || 'Unknown error'}`);
     }
   },
   
   // Get all documents from the database
   async getAllDocuments(): Promise<FileItem[]> {
     try {
-      const response = await axios.get(API_ENDPOINTS.DOCUMENTS.GET);
+      const response = await axios.get(API_ENDPOINTS.FILES.MONGODB.GET);
       return response.data;
     } catch (error) {
       console.error('Error getting all documents:', error);
       throw new Error('Failed to retrieve documents');
+    }
+  },
+
+  /**
+   * Delete a document from MongoDB storage
+   * @param documentId The ID of the document to delete
+   * @returns Promise that resolves when the document is deleted
+   */
+  async deleteDocument(documentId: string): Promise<void> {
+    try {
+      if (!documentId || documentId === 'undefined') {
+        throw new Error('Document ID is required');
+      }
+
+      console.log('Deleting document from MongoDB:', documentId);
+      const response = await axios.delete(`${API_ENDPOINTS.FILES.MONGODB.DELETE}/${documentId}`, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to delete document from MongoDB');
+      }
+
+      console.log('Document deleted successfully from MongoDB:', documentId);
+    } catch (error: any) {
+      console.error('Error deleting MongoDB document:', error);
+      throw new Error(`Failed to delete document from MongoDB: ${error?.message || 'Unknown error'}`);
     }
   }
 };

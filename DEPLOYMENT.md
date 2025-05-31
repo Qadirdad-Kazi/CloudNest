@@ -1,111 +1,150 @@
 # CloudNest Deployment Guide
 
-This guide provides instructions for deploying the CloudNest application, with the frontend on Netlify and the backend on Vercel.
-
 ## Prerequisites
 
-- GitHub account
-- Netlify account
-- Vercel account
-- MongoDB Atlas account (for production database)
+- Node.js >= 18.0.0
+- MongoDB database
+- Cloudinary account
+- Environment variables set up for both client and server
 
-## Backend Deployment (Vercel)
+## Environment Variables
 
-1. **Prepare your environment variables**:
-   - Create a MongoDB Atlas cluster and get your connection string
-   - Set up the required environment variables in Vercel:
-     - `MONGODB_URI`: Your MongoDB connection string
-     - `JWT_SECRET`: A secure random string for JWT token generation
-     - `JWT_EXPIRE`: Token expiration time (e.g., "7d")
-     - `CLIENT_URL`: Your frontend URL (e.g., "https://cloudnest-app.netlify.app")
-     - `NODE_ENV`: Set to "production"
+### Server (.env)
+```
+PORT=8000
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+CLIENT_URL=http://localhost:5173 # Development
+CLIENT_URL=https://your-production-url.com # Production
+```
 
-2. **Deploy to Vercel**:
-   - Push your code to GitHub
-   - Log in to Vercel and create a new project
-   - Import your GitHub repository
-   - Configure the project:
-     - Build Command: `npm run build`
-     - Output Directory: (leave empty)
-     - Install Command: `npm install`
-   - Add environment variables from step 1
-   - Deploy
+### Client (.env)
+```
+VITE_API_URL=http://localhost:8000 # Development
+VITE_API_URL=https://your-api-url.com # Production
+VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+VITE_CLOUDINARY_UPLOAD_PRESET=your_upload_preset
+```
 
-3. **Verify the deployment**:
-   - Test the API endpoints using tools like Postman
-   - Make sure the authentication routes are working
-   - Check that CORS is properly configured to allow requests from your frontend
+## Deployment Steps
 
-## Frontend Deployment (Netlify)
+### Server Deployment (e.g., on Railway/Heroku)
 
-1. **Prepare your environment variables**:
-   - Set up the required environment variables in Netlify:
-     - `VITE_API_URL`: Your backend API URL (e.g., "https://cloudnest-server.vercel.app/api")
-     - `VITE_NODE_ENV`: Set to "production"
-     - `VITE_CLOUDINARY_CLOUD_NAME`: Your Cloudinary cloud name
-     - `VITE_CLOUDINARY_API_KEY`: Your Cloudinary API key
-     - `VITE_CLOUDINARY_UPLOAD_URL`: Your Cloudinary upload URL
+1. Push your code to a Git repository
+2. Connect your repository to your hosting platform
+3. Set the environment variables in your hosting platform
+4. Ensure the following commands work:
+   ```bash
+   npm install
+   npm start
+   ```
 
-2. **Deploy to Netlify**:
-   - Push your code to GitHub
-   - Log in to Netlify and create a new site
-   - Import your GitHub repository
-   - Configure the build settings:
-     - Build Command: `npm run build`
-     - Publish Directory: `dist`
-   - Add environment variables from step 1
-   - Deploy
+### Client Deployment (e.g., on Vercel/Netlify)
 
-3. **Configure Netlify for SPA routing**:
-   - The `netlify.toml` file should already include the necessary redirects for SPA routing
-   - Verify that routes like `/login` and `/dashboard` work correctly
+1. Push your code to a Git repository
+2. Connect your repository to your hosting platform
+3. Set the build command to:
+   ```bash
+   npm install && npm run build
+   ```
+4. Set the output directory to: `dist`
+5. Set the environment variables in your hosting platform
 
-## Post-Deployment Steps
+## Production Checklist
 
-1. **Update CORS settings**:
-   - Make sure the backend's CORS configuration includes your frontend's domain
+### Server
+- [ ] All environment variables are set
+- [ ] CORS is properly configured for production domain
+- [ ] Error handling is in place
+- [ ] Logging is configured
+- [ ] Rate limiting is implemented
+- [ ] Security headers are set
+- [ ] MongoDB connection has proper error handling
+- [ ] File upload size limits are set
 
-2. **Test the full application**:
-   - Register a new user
-   - Log in with the new user
-   - Test file uploads, downloads, and sharing
-   - Test folder creation and navigation
+### Client
+- [ ] Production API URL is set
+- [ ] Error boundaries are in place
+- [ ] Loading states are handled
+- [ ] Error states are handled
+- [ ] Environment variables are set
+- [ ] Build process completes successfully
+- [ ] Assets are properly loaded
+- [ ] Responsive design works on all devices
 
-3. **Monitor for errors**:
-   - Set up error monitoring in both Vercel and Netlify
-   - Check logs regularly during the initial deployment phase
+## Security Considerations
+
+1. Ensure all API endpoints are protected
+2. Implement rate limiting
+3. Use secure headers
+4. Validate file uploads
+5. Sanitize user inputs
+6. Use HTTPS only
+7. Implement proper session management
+8. Regular security audits
+
+## Monitoring
+
+1. Set up error tracking (e.g., Sentry)
+2. Implement application monitoring
+3. Set up performance monitoring
+4. Configure alerts for critical errors
+
+## Backup Strategy
+
+1. Regular MongoDB backups
+2. Cloudinary assets backup
+3. Database indexing strategy
+4. Backup verification process
+
+## Scaling Considerations
+
+1. Implement caching where appropriate
+2. Use CDN for static assets
+3. Database optimization
+4. Load balancing configuration
+5. Auto-scaling rules
 
 ## Troubleshooting
 
-- **CORS Issues**: If you encounter CORS errors, verify that the backend's CORS configuration includes your frontend's domain.
-- **Authentication Problems**: Check that the JWT secret is properly set in the environment variables.
-- **Database Connection**: Ensure your MongoDB connection string is correct and that network access is properly configured.
-- **Environment Variables**: Double-check that all required environment variables are set correctly in both Vercel and Netlify.
+Common issues and their solutions:
 
-## Updating Your Deployment
+1. CORS errors
+   - Check CORS configuration
+   - Verify client URL in server environment variables
 
-1. **Backend Updates**:
-   - Push changes to your GitHub repository
-   - Vercel will automatically rebuild and deploy the changes
+2. File upload issues
+   - Check Cloudinary configuration
+   - Verify file size limits
+   - Check storage permissions
 
-2. **Frontend Updates**:
-   - Push changes to your GitHub repository
-   - Netlify will automatically rebuild and deploy the changes
+3. Authentication issues
+   - Verify JWT configuration
+   - Check cookie settings
+   - Validate HTTPS settings
 
-## Custom Domain Setup (Optional)
+4. Performance issues
+   - Monitor database queries
+   - Check API response times
+   - Verify caching implementation
 
-1. **Backend (Vercel)**:
-   - Go to your project settings in Vercel
-   - Navigate to the "Domains" section
-   - Add your custom domain (e.g., "api.cloudnest.com")
-   - Update your DNS settings as instructed by Vercel
+## Support
 
-2. **Frontend (Netlify)**:
-   - Go to your site settings in Netlify
-   - Navigate to the "Domain management" section
-   - Add your custom domain (e.g., "cloudnest.com")
-   - Update your DNS settings as instructed by Netlify
+For issues and support:
+1. Check the GitHub repository issues
+2. Review error logs
+3. Contact the development team
 
-3. **Update Environment Variables**:
-   - Update the `CLIENT_URL` in your backend environment variables
-   - Update the `VITE_API_URL` in your frontend environment variables
+## Maintenance
+
+Regular maintenance tasks:
+1. Update dependencies
+2. Monitor disk space
+3. Check error logs
+4. Review security updates
+5. Perform database maintenance
+6. Monitor API usage
+7. Update SSL certificates

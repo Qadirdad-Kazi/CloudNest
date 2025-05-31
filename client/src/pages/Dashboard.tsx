@@ -14,10 +14,13 @@ import FolderCard from '../components/file/FolderCard';
 import ShareModal from '../components/modals/ShareModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useFiles } from '../context/FileContext';
-import { FileItem, Folder, ShareLink } from '../types';
+import { useNotifications } from '../context/NotificationContext';
+import { FileItem, Folder, ShareLink, BreadcrumbItem } from '../types';
+import { mongodbService } from '../services/mongodbService';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const { addNotification } = useNotifications();
   const { 
     files,
     folders,
@@ -36,7 +39,8 @@ const Dashboard: React.FC = () => {
     selectAll,
     starItem,
     shareItem,
-    searchItems
+    searchItems,
+    refreshFiles
   } = useFiles();
   
   const [activeSection, setActiveSection] = useState('my-drive');
@@ -91,11 +95,24 @@ const Dashboard: React.FC = () => {
     }
   };
   
-  const handleCreateFolder = () => {
-    if (newFolderName.trim()) {
-      createFolder(newFolderName);
+  const handleCreateFolder = async (folderName: string) => {
+    try {
+      await createFolder(folderName);
       setNewFolderName('');
       setShowCreateFolder(false);
+      addNotification({
+        type: 'success',
+        message: `Created folder ${folderName}`,
+        title: 'Success'
+      });
+      refreshFiles();
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      addNotification({
+        type: 'error',
+        message: 'Failed to create folder. Please try again.',
+        title: 'Error'
+      });
     }
   };
   
@@ -105,28 +122,69 @@ const Dashboard: React.FC = () => {
       setShowRenameDialog(false);
       setItemToRename(null);
       setNewName('');
+      addNotification({
+        type: 'success',
+        message: `Renamed ${itemToRename?.name} to ${newName}`,
+        title: 'Success'
+      });
+      refreshFiles();
     }
   };
   
   const handleShare = (isPublic: boolean, password?: string, expiry?: Date) => {
     if (itemToShare) {
       shareItem(itemToShare, isPublic, password, expiry)
-        .then((link) => {
+        .then((link: ShareLink) => {
           setShareLink(link);
+          addNotification({
+            type: 'success',
+            message: `Shared ${itemToShare.name}`,
+            title: 'Success'
+          });
         })
-        .catch((err) => {
+        .catch((err: Error) => {
           console.error('Error sharing item:', err);
+          addNotification({
+            type: 'error',
+            message: 'Failed to share item. Please try again.',
+            title: 'Error'
+          });
         });
     }
   };
   
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      Array.from(files).forEach(file => {
-        uploadFile(file);
-      });
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of files) {
+      try {
+        const uploadNotificationId = `upload-${Date.now()}-${file.name}`;
+        addNotification({
+          id: uploadNotificationId,
+          type: 'info',
+          message: `Uploading ${file.name}...`,
+          title: 'Upload in Progress',
+          progress: 0
+        });
+
+        await uploadFile(file);
+
+        addNotification({
+          type: 'success',
+          message: `Successfully uploaded ${file.name}`,
+          title: 'Upload Complete'
+        });
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        addNotification({
+          type: 'error',
+          message: `Failed to upload ${file.name}. ${error instanceof Error ? error.message : 'Please try again.'}`,
+          title: 'Upload Error'
+        });
+      }
     }
+    refreshFiles();
   };
   
   const handleFolderClick = (folder: Folder) => {
@@ -141,13 +199,52 @@ const Dashboard: React.FC = () => {
     clearSelection();
   };
   
-  const handleFileClick = (file: FileItem) => {
-    // In a real app, this would open a preview or download the file
-    console.log('File clicked:', file);
+  const handleFileClick = async (file: FileItem) => {
+    try {
+      // Handle file click based on type
+      if (file.mongodbId) {
+        // MongoDB document
+        const documentBlob = await mongodbService.getDocument(file.mongodbId);
+        const url = URL.createObjectURL(documentBlob);
+        window.open(url, '_blank');
+        URL.revokeObjectURL(url);
+      } else if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+        // Images and PDFs - preview in new tab
+        if (file.url) {
+          window.open(file.url, '_blank');
+        }
+      } else {
+        // Other files - download
+        if (file.url) {
+          const link = document.createElement('a');
+          link.href = file.url;
+          link.download = file.name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
+    } catch (error) {
+      console.error('Error handling file click:', error);
+      addNotification({
+        type: 'error',
+        message: 'Failed to open file. Please try again.',
+        title: 'Error'
+      });
+    }
   };
   
   const handleBreadcrumbClick = (path: string) => {
     setCurrentPath(path);
+  };
+  
+  const handleCreateFolderClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    if (newFolderName.trim()) {
+      handleCreateFolder(newFolderName.trim());
+      setNewFolderName('');
+      setShowCreateFolder(false);
+    }
   };
   
   return (
@@ -164,7 +261,7 @@ const Dashboard: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-4">
           {/* Breadcrumbs */}
           <div className="flex items-center mb-4">
-            {breadcrumbs.map((crumb, index) => (
+            {breadcrumbs.map((crumb: BreadcrumbItem, index: number) => (
               <React.Fragment key={crumb.path}>
                 <button 
                   className="text-sm hover:text-indigo-600 dark:hover:text-indigo-400"
@@ -195,10 +292,10 @@ const Dashboard: React.FC = () => {
               
               <button 
                 className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                onClick={() => setShowCreateFolder(true)}
+                onClick={handleCreateFolderClick}
               >
                 <FolderPlus className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" />
-                <span>New Folder</span>
+                Create Folder
               </button>
               
               {selectedItems.length > 0 && (
@@ -243,7 +340,7 @@ const Dashboard: React.FC = () => {
                 />
                 <button 
                   className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                  onClick={handleCreateFolder}
+                  onClick={handleCreateFolderClick}
                 >
                   Create
                 </button>
@@ -309,8 +406,8 @@ const Dashboard: React.FC = () => {
                     'type' in item ? (
                       <FileCard 
                         key={`file-${item.id}`}
-                        file={item}
-                        selected={selectedItems.some(selected => selected.id === item.id)}
+                        file={item as FileItem}
+                        selected={selectedItems.some((selected: FileItem | Folder) => selected.id === item.id)}
                         onSelect={toggleSelect}
                         onStar={starItem}
                         onRename={(file) => {
@@ -330,8 +427,8 @@ const Dashboard: React.FC = () => {
                     ) : (
                       <FolderCard 
                         key={`folder-${item.id}`}
-                        folder={item}
-                        selected={selectedItems.some(selected => selected.id === item.id)}
+                        folder={item as Folder}
+                        selected={selectedItems.some((selected: FileItem | Folder) => selected.id === item.id)}
                         onSelect={toggleSelect}
                         onStar={starItem}
                         onRename={(folder) => {
@@ -409,11 +506,11 @@ const Dashboard: React.FC = () => {
                 </div>
               ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {folders.map(folder => (
+                  {folders.map((folder: Folder) => (
                     <FolderCard 
                       key={`folder-${folder.id}`}
                       folder={folder}
-                      selected={selectedItems.some(item => item.id === folder.id)}
+                      selected={selectedItems.some((item: FileItem | Folder) => item.id === folder.id)}
                       onSelect={toggleSelect}
                       onStar={starItem}
                       onRename={(folder) => {
@@ -431,11 +528,11 @@ const Dashboard: React.FC = () => {
                     />
                   ))}
                   
-                  {files.map(file => (
+                  {files.map((file: FileItem) => (
                     <FileCard 
                       key={`file-${file.id}`}
                       file={file}
-                      selected={selectedItems.some(item => item.id === file.id)}
+                      selected={selectedItems.some((item: FileItem | Folder) => item.id === file.id)}
                       onSelect={toggleSelect}
                       onStar={starItem}
                       onRename={(file) => {

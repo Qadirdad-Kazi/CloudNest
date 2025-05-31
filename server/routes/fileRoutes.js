@@ -2,6 +2,10 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import multer from 'multer';
 import { fileService } from '../services/fileService.js';
+import { v2 as cloudinary } from 'cloudinary';
+import mongoose from 'mongoose';
+import { File } from '../models/File.js';
+import { bucket } from '../config/mongodb.js';
 
 const router = express.Router();
 
@@ -125,11 +129,63 @@ router.patch('/star/:fileId', async (req, res) => {
     const userId = req.user._id;
     const { fileId } = req.params;
     
-    const file = await fileService.toggleStar(userId, fileId);
+    console.log(`Attempting to toggle star for file: ${fileId}, user: ${userId}`);
+    
+    // Check if file exists first
+    const file = await File.findOne({ _id: fileId, userId });
+    if (!file) {
+      console.log(`File not found: ${fileId}`);
+      return res.status(404).json({ message: 'File not found' });
+    }
+    
+    console.log('Current isStarred value:', file.isStarred);
+    file.isStarred = !file.isStarred;
+    console.log('New isStarred value:', file.isStarred);
+    
+    file.modifiedAt = new Date();
+    await file.save();
+    
+    console.log(`Star toggled successfully for file: ${fileId}, new isStarred value: ${file.isStarred}`);
     res.json(file);
   } catch (error) {
     console.error('Error toggling star status:', error);
+    if (error.name === 'CastError' || error.name === 'ValidationError') {
+      return res.status(400).json({ message: 'Invalid file ID format' });
+    }
     res.status(500).json({ message: error.message || 'Failed to update star status' });
+  }
+});
+
+// Empty trash
+router.delete('/trash/empty', async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Get all files in trash
+    const trashedFiles = await fileService.getTrashFiles(userId);
+    
+    if (!trashedFiles || trashedFiles.length === 0) {
+      return res.json({ message: 'Trash is already empty' });
+    }
+
+    // Delete each file permanently
+    const deletePromises = trashedFiles.map(async (file) => {
+      // Delete from cloud storage if applicable
+      if (file.cloudProvider === 'cloudinary' && file.cloudId) {
+        await cloudinary.uploader.destroy(file.cloudId);
+      } else if (file.cloudProvider === 'mongodb' && file.cloudId) {
+        await bucket.delete(new mongoose.Types.ObjectId(file.cloudId));
+      }
+      // Delete file document
+      await File.deleteOne({ _id: file._id });
+    });
+
+    await Promise.all(deletePromises);
+    
+    res.json({ message: 'Trash emptied successfully' });
+  } catch (error) {
+    console.error('Error emptying trash:', error);
+    res.status(500).json({ message: 'Failed to empty trash' });
   }
 });
 

@@ -3,10 +3,32 @@ import { FileItem, Folder } from '../types';
 import { cloudinaryService } from './cloudinaryService';
 import { mongodbService } from './mongodbService';
 import { API_ENDPOINTS, API_CONFIG } from '../config/api';
+import { useNotifications } from '../context/NotificationContext';
 
 // Constants for file upload
 const UPLOAD_TIMEOUT = 120000; // 2 minutes
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+// Helper function to normalize file data from server
+export const normalizeFile = (file: any): FileItem => {
+  console.log('Normalizing file with isStarred:', file.isStarred);
+  const normalizedFile = {
+    id: file._id || file.id,
+    name: file.name,
+    type: file.type,
+    size: file.size,
+    path: file.path,
+    starred: file.isStarred !== undefined ? Boolean(file.isStarred) : Boolean(file.starred),
+    inTrash: Boolean(file.isDeleted),
+    cloudProvider: file.cloudProvider || 'unknown',
+    url: file.url || '',
+    createdAt: file.createdAt || new Date().toISOString(),
+    updatedAt: file.modifiedAt || file.updatedAt || new Date().toISOString(),
+    mongodbId: file.mongodbId
+  };
+  console.log('Normalized file result:', normalizedFile);
+  return normalizedFile;
+};
 
 /**
  * File service for handling all file operations
@@ -161,7 +183,11 @@ export const fileService = {
       const response = await axios.get(API_ENDPOINTS.FILES.LIST, {
         params: { path }
       });
-      return response.data;
+      
+      // Normalize each file in the response
+      const normalizedFiles = response.data.map((file: any) => normalizeFile(file));
+      console.log('Normalized files:', normalizedFiles);
+      return normalizedFiles;
     } catch (error: any) {
       console.error('Error retrieving files from server:', error);
       throw new Error(`Failed to get files: ${error?.message || 'Unknown error'}`);
@@ -206,7 +232,15 @@ export const fileService = {
    */
   async moveToTrash(fileId: string): Promise<void> {
     try {
-      await axios.post(`${API_ENDPOINTS.FILES.MOVE_TO_TRASH}/${fileId}`);
+      if (!fileId) {
+        throw new Error('File ID is required');
+      }
+
+      const id = fileId.toString(); // Convert to string in case it's an ObjectId
+      console.log('Moving file to trash:', id);
+      
+      // Just update the file status in the database to mark it as trashed
+      await axios.post(`${API_ENDPOINTS.FILES.MOVE_TO_TRASH}/${id}`);
     } catch (error: any) {
       console.error('Error moving file to trash:', error);
       throw new Error(`Failed to move file to trash: ${error?.message || 'Unknown error'}`);
@@ -220,39 +254,106 @@ export const fileService = {
    */
   async restoreFromTrash(fileId: string): Promise<void> {
     try {
-      await axios.post(`${API_ENDPOINTS.FILES.RESTORE}/${fileId}`);
+      if (!fileId || fileId === 'undefined') {
+        throw new Error('File ID is required');
+      }
+
+      console.log('Restoring file from trash:', fileId);
+      const response = await axios.post(`${API_ENDPOINTS.FILES.RESTORE}/${fileId}`);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to restore file');
+      }
+
+      console.log('File restored successfully:', fileId);
     } catch (error: any) {
-      console.error('Error restoring file from trash:', error);
+      console.error('Error restoring file:', error);
       throw new Error(`Failed to restore file: ${error?.message || 'Unknown error'}`);
     }
   },
 
   /**
-   * Empty the trash (permanently delete all files in trash)
-   * @returns Promise that resolves when the trash is emptied
-   */
-  async emptyTrash(): Promise<void> {
-    try {
-      await axios.delete(API_ENDPOINTS.FILES.EMPTY_TRASH);
-    } catch (error: any) {
-      console.error('Error emptying trash:', error);
-      throw new Error(`Failed to empty trash: ${error?.message || 'Unknown error'}`);
-    }
-  },
-
-  /**
-   * Permanently delete a file (bypassing trash)
+   * Permanently delete a file from all storage systems
    * @param fileId ID of the file to delete
    * @returns Promise that resolves when the file is deleted
    */
   async permanentlyDeleteFile(fileId: string): Promise<void> {
     try {
-      console.log('Permanently deleting file:', fileId);
-      await axios.delete(`${API_ENDPOINTS.FILES.DELETE}/${fileId}?permanent=true`);
-      console.log('File permanently deleted:', fileId);
+      if (!fileId || fileId === 'undefined') {
+        throw new Error('File ID is required');
+      }
+
+      const id = fileId.toString(); // Convert to string in case it's an ObjectId
+      console.log('Permanently deleting file:', id);
+      
+      // First get the file details to know which storage system to clean up
+      const response = await axios.get(`${API_ENDPOINTS.FILES.LIST}/${id}`);
+      const file = response.data;
+      
+      // Delete from appropriate storage system
+      if (file.mongodbId) {
+        console.log('Deleting from MongoDB:', file.mongodbId);
+        // Delete from MongoDB storage
+        await mongodbService.deleteDocument(file.mongodbId);
+      } else if (file.cloudinaryUrl) {
+        // Extract public ID from Cloudinary URL
+        const publicId = file.cloudinaryUrl.split('/').pop()?.split('.')[0];
+        if (publicId) {
+          console.log('Deleting from Cloudinary:', publicId);
+          // Delete from Cloudinary
+          await cloudinaryService.deleteImage(publicId);
+        }
+      }
+      
+      // Finally, delete the file record from our database
+      console.log('Deleting file record from database:', id);
+      const deleteResponse = await axios.delete(`${API_ENDPOINTS.FILES.DELETE}/${id}`, {
+        params: { permanent: true }
+      });
+
+      if (!deleteResponse.data.success) {
+        throw new Error(deleteResponse.data.message || 'Failed to delete file record');
+      }
+
+      console.log('File permanently deleted:', id);
     } catch (error: any) {
       console.error('Error permanently deleting file:', error);
       throw new Error(`Failed to permanently delete file: ${error?.message || 'Unknown error'}`);
+    }
+  },
+
+  /**
+   * Empty the trash by permanently deleting all trashed files
+   * @returns Promise that resolves when all trashed files are deleted
+   */
+  async emptyTrash(): Promise<void> {
+    try {
+      // Get all files in trash
+      const trashedFiles = await this.getTrashedFiles();
+      
+      if (!trashedFiles || trashedFiles.length === 0) {
+        return;
+      }
+      
+      // Delete each file permanently
+      const deletePromises = trashedFiles
+        .filter(file => file.id && file.id !== 'undefined') // Filter out invalid IDs
+        .map(async (file) => {
+          try {
+            await this.permanentlyDeleteFile(file.id);
+          } catch (error) {
+            console.error(`Error deleting file ${file.id}:`, error);
+            throw error; // Re-throw to handle the error
+          }
+        });
+      
+      await Promise.all(deletePromises);
+      
+      // Notify the server that trash has been emptied
+      await axios.delete(API_ENDPOINTS.FILES.EMPTY_TRASH);
+    } catch (error: any) {
+      console.error('Error emptying trash:', error);
+      throw new Error(`Failed to empty trash: ${error?.message || 'Unknown error'}`);
     }
   },
 
@@ -263,9 +364,14 @@ export const fileService = {
    */
   async deleteFile(fileId: string): Promise<void> {
     try {
-      console.log('Moving file to trash:', fileId);
+      if (!fileId) {
+        throw new Error('File ID is required');
+      }
+
+      const id = fileId.toString(); // Convert to string in case it's an ObjectId
+      console.log('Moving file to trash:', id);
       // Use the moveToTrash method to ensure consistency
-      await this.moveToTrash(fileId);
+      await this.moveToTrash(id);
     } catch (error: any) {
       console.error('Error moving file to trash:', error);
       throw new Error(`Failed to move file to trash: ${error?.message || 'Unknown error'}`);
@@ -279,11 +385,27 @@ export const fileService = {
    */
   async toggleStar(fileId: string): Promise<FileItem> {
     try {
-      // Use PATCH method with the file ID in the URL path, matching the server endpoint
-      const response = await axios.patch(`${API_CONFIG.BASE_URL}/files/star/${fileId}`);
-      return response.data;
+      if (!fileId || fileId === 'undefined') {
+        throw new Error('File ID is required');
+      }
+
+      console.log('Attempting to toggle star for file:', fileId);
+      console.log('Using endpoint:', `${API_ENDPOINTS.FILES.STAR}/${fileId}`);
+
+      const response = await axios.patch(`${API_ENDPOINTS.FILES.STAR}/${fileId}`);
+      console.log('Server response:', response.data);
+      
+      const normalizedFile = normalizeFile(response.data);
+      console.log('Normalized file:', normalizedFile);
+      
+      return normalizedFile;
     } catch (error: any) {
       console.error('Error toggling star status:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       throw new Error(`Failed to toggle star status: ${error?.message || 'Unknown error'}`);
     }
   },

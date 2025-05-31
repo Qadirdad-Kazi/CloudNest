@@ -1,6 +1,6 @@
-import axios from 'axios';
+import axios from '../utils/axios';
 import { Cloudinary } from 'cloudinary-core';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, API_ENDPOINTS } from '../config/api';
 
 // Constants
 const UPLOAD_TIMEOUT = 120000; // 2 minutes
@@ -90,5 +90,19 @@ export const cloudinaryService = {
         { fetch_format: 'auto' }
       ]
     });
+  },
+
+  /**
+   * Delete an image from Cloudinary
+   * @param publicId The public ID of the image to delete
+   * @returns Promise that resolves when the image is deleted
+   */
+  async deleteImage(publicId: string): Promise<void> {
+    try {
+      await axios.delete(`${API_ENDPOINTS.FILES.CLOUDINARY.DELETE}/${publicId}`);
+    } catch (error) {
+      console.error('Error deleting Cloudinary image:', error);
+      throw new Error('Failed to delete image from Cloudinary');
+    }
   }
 };

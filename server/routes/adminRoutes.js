@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import User from '../models/User.js';
-import File from '../models/File.js';
+import { File } from '../models/File.js';
 import ActivityLog from '../models/ActivityLog.js';
 import SystemMetric from '../models/SystemMetric.js';
 import mongoose from 'mongoose';

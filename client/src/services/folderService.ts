@@ -2,6 +2,22 @@ import axios from '../utils/axios';
 import { Folder } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 
+// Helper function to normalize folder data from server
+const normalizeFolder = (folder: any): Folder => {
+  return {
+    id: folder.id || folder._id,
+    name: folder.name,
+    path: folder.path,
+    owner: folder.owner || folder.userId,
+    shared: folder.shared || false,
+    starred: folder.isStarred || false, // Changed to use isStarred from server
+    inTrash: folder.inTrash || false,
+    tags: folder.tags || [],
+    createdAt: folder.createdAt || new Date().toISOString(),
+    modifiedAt: folder.modifiedAt || folder.updatedAt || new Date().toISOString()
+  };
+};
+
 export const folderService = {
   // Create a new folder
   async createFolder(folderData: { name: string; path: string }): Promise<Folder> {
@@ -20,7 +36,7 @@ export const folderService = {
         throw new Error('Invalid folder data received from server');
       }
       
-      return response.data;
+      return normalizeFolder(response.data);
     } catch (error: any) {
       console.error('Error creating folder:', error);
       if (error.response) {
@@ -45,19 +61,8 @@ export const folderService = {
       // Ensure we always return an array
       const folders = Array.isArray(response.data) ? response.data : [];
       
-      // Validate each folder object and ensure it matches the Folder type
-      return folders.map(folder => ({
-        id: folder.id || folder._id,
-        name: folder.name,
-        path: folder.path,
-        owner: folder.owner || folder.userId,
-        shared: folder.shared || false,
-        starred: folder.starred || folder.isStarred || false,
-        inTrash: folder.inTrash || false,
-        tags: folder.tags || [],
-        createdAt: folder.createdAt || new Date().toISOString(),
-        modifiedAt: folder.modifiedAt || folder.updatedAt || new Date().toISOString()
-      }));
+      // Normalize each folder object
+      return folders.map(folder => normalizeFolder(folder));
     } catch (error: any) {
       console.error('Error getting folders:', error);
       if (error.response) {
@@ -87,23 +92,51 @@ export const folderService = {
     }
   },
   
+  // Move a folder to trash
+  async moveToTrash(folderId: string): Promise<void> {
+    try {
+      if (!folderId) {
+        throw new Error('Folder ID is required');
+      }
+
+      await axios.post(`${API_ENDPOINTS.FOLDERS.TRASH}/${folderId}`);
+    } catch (error: any) {
+      console.error('Error moving folder to trash:', error);
+      throw new Error(`Failed to move folder to trash: ${error?.message || 'Unknown error'}`);
+    }
+  },
+  
   // Rename a folder
   async renameFolder(folderId: string, newName: string): Promise<Folder> {
     try {
-      const response = await axios.patch(`${API_ENDPOINTS.FOLDERS.LIST}/${folderId}/rename`, { newName });
+      const response = await axios.patch(`${API_ENDPOINTS.FOLDERS.UPDATE}/${folderId}`, { name: newName });
       
       // Validate the response data
       if (!response.data || !response.data.folder) {
         throw new Error('Invalid response data from server');
       }
       
-      return response.data.folder;
+      return normalizeFolder(response.data.folder);
     } catch (error: any) {
       console.error('Error renaming folder:', error);
       if (error.response) {
         throw new Error(error.response.data.message || 'Failed to rename folder');
       }
       throw new Error('Failed to rename folder');
+    }
+  },
+  
+  // Toggle star status of a folder
+  async toggleStar(folderId: string): Promise<Folder> {
+    try {
+      if (!folderId) {
+        throw new Error('Folder ID is required');
+      }
+      const response = await axios.patch(`${API_ENDPOINTS.FOLDERS.STAR}/${folderId}`);
+      return normalizeFolder(response.data);
+    } catch (error: any) {
+      console.error('Error toggling folder star:', error);
+      throw new Error(`Failed to toggle folder star: ${error?.message || 'Unknown error'}`);
     }
   }
 };

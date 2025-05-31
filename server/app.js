@@ -8,6 +8,8 @@ import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import monitoringService from './services/monitoringService.js';
 import { errorLogger } from './middleware/activityLogger.js';
+import helmet from 'helmet';
+import { errorHandler } from './middleware/errorHandler';
 
 import authRoutes from './routes/authRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
@@ -117,6 +119,26 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Basic security headers
+app.use(helmet());
+
+// Configure Content Security Policy
+app.use((req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    `default-src 'self';
+     script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:;
+     style-src 'self' 'unsafe-inline';
+     img-src 'self' data: blob:;
+     font-src 'self' data:;
+     connect-src 'self' ws: wss: blob:;
+     frame-src 'self';
+     media-src 'self' blob:;
+     object-src 'none';`
+  );
+  next();
+});
+
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -138,10 +160,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(err => console.error('MongoDB connection error:', err));
 
 // Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 

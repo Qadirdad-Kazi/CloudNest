@@ -113,29 +113,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (isUpdate) {
         // Update existing notification
         setNotifications(prev => {
-          // Ensure prev is always an array
           const prevArray = Array.isArray(prev) ? prev : [];
-          
-          // Find the index of the notification to update
           const index = prevArray.findIndex(n => n.id === notification.id);
           
           if (index !== -1) {
-            // Create a copy of the array
             const updatedNotifications = [...prevArray];
-            
-            // Update the notification at the found index
             updatedNotifications[index] = {
               ...prevArray[index],
               ...notification,
-              read: false, // Mark as unread when updated
+              read: false,
             };
-            
             return updatedNotifications;
           }
           
-          // If not found, add as new
           const newNotification: Notification = {
-            id: notification.id as string, // We know it's defined because isUpdate is true
+            id: notification.id as string,
             read: false,
             createdAt: notification.createdAt || new Date().toISOString(),
             type: notification.type,
@@ -151,27 +143,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
         // Don't auto-remove progress notifications
         if (notification.progress === undefined || notification.progress === 100) {
-          // Auto remove notification from UI after duration
           setTimeout(() => {
             setNotifications(prev => prev.filter(n => n.id !== notification.id));
-          }, 5000); // Default duration is 5 seconds
+          }, 5000);
         }
       } else {
-        // Try to call the API for new notifications
+        // Create a new notification
         try {
           const newNotification = await notificationService.createNotification(notification);
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
 
-          // Auto remove notification from UI after duration
-          setTimeout(() => {
-            setNotifications(prev => prev.filter(n => n.id !== newNotification.id));
-          }, 5000); // Default duration is 5 seconds
-        } catch (apiError) {
+          // Auto remove notification after 5 seconds if it's not a progress notification
+          if (notification.progress === undefined || notification.progress === 100) {
+            setTimeout(() => {
+              setNotifications(prev => prev.filter(n => n.id !== newNotification.id));
+            }, 5000);
+          }
+        } catch (error) {
           console.warn('API endpoint not available, using local notification');
           
-          // Create a mock notification as fallback with a guaranteed unique ID
-          const mockNotification: Notification = {
+          // Create a local notification
+          const localNotification: Notification = {
             id: `local-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
             read: false,
             createdAt: new Date().toISOString(),
@@ -183,20 +176,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             relatedItemType: notification.relatedItemType
           };
           
-          // Add the mock notification to the UI
-          setNotifications(prev => {
-            // Ensure prev is always an array
-            const prevArray = Array.isArray(prev) ? prev : [];
-            return [mockNotification, ...prevArray];
-          });
+          setNotifications(prev => [localNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
           
-          // Don't auto-remove progress notifications
+          // Auto remove notification after 5 seconds if it's not a progress notification
           if (notification.progress === undefined || notification.progress === 100) {
-            // Auto remove notification from UI after duration
             setTimeout(() => {
-              setNotifications(prev => prev.filter(n => n.id !== mockNotification.id));
-            }, 5000); // Default duration is 5 seconds
+              setNotifications(prev => prev.filter(n => n.id !== localNotification.id));
+            }, 5000);
           }
         }
       }

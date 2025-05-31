@@ -86,4 +86,4 @@ fileSchema.methods.updateLastAccessed = function() {
   return this.save();
 };
 
-export default mongoose.model('File', fileSchema);
+export const File = mongoose.model('File', fileSchema);

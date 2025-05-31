@@ -5,6 +5,7 @@ import { useNotifications } from './NotificationContext';
 import { fileService } from '../services/fileService';
 import { folderService } from '../services/folderService';
 import { shareLinkService } from '../services/shareLinkService';
+import { normalizeFile } from '../services/fileService';
 
 // Define the shape of our context
 interface FileContextType {
@@ -30,12 +31,13 @@ interface FileContextType {
   starItem: (item: FileItem | Folder) => Promise<void>;
   shareItem: (item: FileItem | Folder, isPublic: boolean, password?: string, expiry?: Date) => Promise<ShareLink>;
   searchItems: (query: string) => Promise<(FileItem | Folder)[]>;
-  deleteFile: (fileId: string, skipTrash?: boolean) => Promise<void>;
+  deleteFile: (fileId: string, permanent: boolean) => Promise<void>;
   starFile: (fileId: string) => Promise<void>;
   moveToTrash: (fileId: string) => Promise<void>;
   restoreFromTrash: (fileId: string) => Promise<void>;
   emptyTrash: () => Promise<void>;
   getTrashFiles: () => Promise<FileItem[]>;
+  refreshFiles: () => Promise<void>;
 }
 
 // Create the context with default values
@@ -68,6 +70,7 @@ const FileContext = createContext<FileContextType>({
   restoreFromTrash: async () => {},
   emptyTrash: async () => {},
   getTrashFiles: async () => [],
+  refreshFiles: async () => {},
 });
 
 // Custom hook to use the file context
@@ -216,35 +219,34 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       const fileIds = items
         .filter(item => 'type' in item) // Only files have a 'type' property
-        .map(item => item.id);
+        .map(item => item.id)
+        .filter(id => id !== undefined && id !== null); // Filter out undefined/null IDs
       
       const folderIds = items
         .filter(item => !('type' in item)) // Folders don't have a 'type' property
-        .map(item => item.id);
+        .map(item => item.id)
+        .filter(id => id !== undefined && id !== null); // Filter out undefined/null IDs
       
       if (fileIds.length > 0) {
-        await Promise.all(fileIds.map(id => fileService.deleteFile(id)));
+        await Promise.all(fileIds.map(id => fileService.moveToTrash(id)));
         setFiles(prev => prev.filter(file => !fileIds.includes(file.id)));
       }
       
       if (folderIds.length > 0) {
-        await Promise.all(folderIds.map(id => folderService.deleteFolder(id)));
+        await Promise.all(folderIds.map(id => folderService.moveToTrash(id)));
         setFolders(prev => prev.filter(folder => !folderIds.includes(folder.id)));
       }
       
       addNotification({
         type: 'success',
-        message: `${items.length} item(s) deleted successfully`,
+        message: `Moved ${items.length} item${items.length > 1 ? 's' : ''} to trash`
       });
-      
-      // Clear selection after deleting
-      setSelectedItems([]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting items:', error);
-      setError('Failed to delete items');
+      setError(error.message || 'Failed to delete items');
       addNotification({
         type: 'error',
-        message: 'Failed to delete items',
+        message: `Failed to delete items: ${error.message || 'Unknown error'}`
       });
     } finally {
       setIsLoading(false);
@@ -317,25 +319,26 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(true);
       setError(null);
       
+      const itemId = item.id || (item as any)._id;
+      if (!itemId) {
+        throw new Error('Invalid item: missing ID');
+      }
+      
       if ('type' in item) {
         // It's a file
-        const updatedFile = await fileService.starFile(item.id);
+        const updatedFile = await fileService.toggleStar(itemId);
         setFiles(prev => prev.map(file => 
-          file.id === item.id ? updatedFile : file
+          (file.id === itemId || (file as any)._id === itemId) ? normalizeFile(updatedFile) : file
         ));
       } else {
         // It's a folder
-        // Since folderService doesn't have a toggleStar method, we need to implement a workaround
-        // For now, we'll just update the local state
-        // TODO: Implement proper folder starring functionality on the backend
-        const updatedFolder = { ...item, starred: !item.starred };
+        const updatedFolder = await folderService.toggleStar(itemId);
         setFolders(prev => prev.map(folder => 
-          folder.id === item.id ? updatedFolder : folder
+          (folder.id === itemId || (folder as any)._id === itemId) ? updatedFolder : folder
         ));
       }
       
       const action = item.starred ? 'removed from' : 'added to';
-      
       addNotification({
         type: 'success',
         message: `Item ${action} favorites`,
@@ -475,34 +478,36 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Delete a single file
-  const deleteFile = async (fileId: string, skipTrash = false): Promise<void> => {
+  const deleteFile = async (fileId: string, permanent: boolean = false): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      if (skipTrash) {
-        // Permanently delete the file
-        await fileService.deleteFile(fileId);
-      } else {
-        // Move to trash
-        await moveToTrash(fileId);
-        return;
+
+      if (!fileId) {
+        throw new Error('File ID is required');
       }
-      
-      // Update local state
+
+      if (permanent) {
+        await fileService.permanentlyDeleteFile(fileId);
+      } else {
+        await fileService.moveToTrash(fileId);
+      }
+
+      // Update the files list
       setFiles(prev => prev.filter(file => file.id !== fileId));
-      
+
       addNotification({
         type: 'success',
-        message: 'File deleted successfully',
+        message: permanent ? 'File permanently deleted' : 'File moved to trash'
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting file:', error);
-      setError('Failed to delete file');
+      setError(error.message || 'Failed to delete file');
       addNotification({
         type: 'error',
-        message: 'Failed to delete file',
+        message: `Failed to delete file: ${error.message || 'Unknown error'}`
       });
+      throw error; // Re-throw to handle in component
     } finally {
       setIsLoading(false);
     }
@@ -514,17 +519,20 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(true);
       setError(null);
       
-      const updatedFile = await fileService.toggleStar(fileId);
+      console.log('Toggling star for file:', fileId);
+      const serverResponse = await fileService.toggleStar(fileId);
+      console.log('Server response:', serverResponse);
       
-      // Update local state
+      // Update local state with normalized file data
+      const normalizedFile = normalizeFile(serverResponse);
       setFiles(prev => prev.map(file => 
-        file.id === fileId 
-          ? updatedFile 
-          : file
+        file.id === fileId ? normalizedFile : file
       ));
       
-      const action = updatedFile.starred ? 'added to' : 'removed from';
+      // Refresh the current directory to ensure consistency
+      await loadFiles(currentPath);
       
+      const action = normalizedFile.starred ? 'added to' : 'removed from';
       addNotification({
         type: 'success',
         message: `File ${action} favorites`,
@@ -558,74 +566,108 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Restore a file from trash
-  const restoreFromTrash = async (fileId: string) => {
+  const restoreFromTrash = async (fileId: string): Promise<void> => {
     try {
+      setIsLoading(true);
+      setError(null);
+
+      if (!fileId) {
+        throw new Error('File ID is required');
+      }
+
       await fileService.restoreFromTrash(fileId);
-      await loadTrashedFiles();
-    } catch (error) {
-      console.error('Error restoring file from trash:', error);
-      throw new Error('Failed to restore file from trash');
+
+      // Update the files list
+      setFiles(prev => prev.map(file => 
+        file.id === fileId ? { ...file, inTrash: false } : file
+      ));
+
+      addNotification({
+        type: 'success',
+        message: 'File restored successfully'
+      });
+    } catch (error: any) {
+      console.error('Error restoring file:', error);
+      setError(error.message || 'Failed to restore file');
+      addNotification({
+        type: 'error',
+        message: `Failed to restore file: ${error.message || 'Unknown error'}`
+      });
+      throw error; // Re-throw to handle in component
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Empty trash (permanently delete all files in trash)
-  const emptyTrash = async () => {
+  // Empty trash
+  const emptyTrash = async (): Promise<void> => {
     try {
-      await fileService.emptyTrash();
-      await loadTrashedFiles();
-    } catch (error) {
+      setIsLoading(true);
+      setError(null);
+
+      // Get all files in trash first
+      const trashedFiles = await fileService.getTrashedFiles();
+      
+      if (!trashedFiles || trashedFiles.length === 0) {
+        addNotification({
+          type: 'info',
+          message: 'Trash is already empty'
+        });
+        return;
+      }
+
+      // Filter out files with invalid IDs
+      const validFiles = trashedFiles.filter(file => file.id && file.id !== 'undefined');
+
+      if (validFiles.length === 0) {
+        addNotification({
+          type: 'warning',
+          message: 'No valid files to delete'
+        });
+        return;
+      }
+
+      // Delete each file permanently
+      await Promise.all(
+        validFiles.map(file => fileService.permanentlyDeleteFile(file.id))
+      );
+
+      // Update the files list
+      setFiles(prev => prev.filter(file => !file.inTrash));
+
+      addNotification({
+        type: 'success',
+        message: 'Trash emptied successfully'
+      });
+    } catch (error: any) {
       console.error('Error emptying trash:', error);
-      throw new Error('Failed to empty trash');
+      setError(error.message || 'Failed to empty trash');
+      addNotification({
+        type: 'error',
+        message: `Failed to empty trash: ${error.message || 'Unknown error'}`
+      });
+      throw error; // Re-throw to handle in component
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Get all files in trash
+  // Get files in trash
   const getTrashFiles = async (): Promise<FileItem[]> => {
     try {
       setIsLoading(true);
-      
-      // Try to get trash files from the server
-      let serverTrashFiles: FileItem[] = [];
-      try {
-        serverTrashFiles = await fileService.getTrashedFiles();
-        console.log('Server trash files:', serverTrashFiles);
-      } catch (serverError) {
-        console.warn('Could not fetch trash files from server, using local data:', serverError);
-      }
-      
-      // Also get any locally stored trash files
-      const storedTrashedFiles = localStorage.getItem('trashedFiles');
-      const localTrashFiles: FileItem[] = storedTrashedFiles ? JSON.parse(storedTrashedFiles) : [];
-      console.log('Local trash files:', localTrashFiles);
-      
-      // Merge server and local trash files, removing duplicates
-      const allTrashFiles = [...serverTrashFiles];
-      
-      // Add local trash files that aren't already in the server list
-      localTrashFiles.forEach(localFile => {
-        if (!allTrashFiles.some(file => file.id === localFile.id)) {
-          allTrashFiles.push(localFile);
-        }
-      });
-      
-      console.log('All trash files:', allTrashFiles);
-      return allTrashFiles;
-    } catch (error) {
-      console.error('Error getting trash files:', error);
-      setError('Failed to get trash files');
+      setError(null);
+
+      const trashedFiles = await fileService.getTrashedFiles();
+      return trashedFiles || [];
+    } catch (error: any) {
+      console.error('Error getting trashed files:', error);
+      setError(error.message || 'Failed to get trashed files');
       addNotification({
         type: 'error',
-        message: 'Failed to load trash files',
+        message: `Failed to get trashed files: ${error.message || 'Unknown error'}`
       });
-      
-      // Try to return local trash files as fallback
-      try {
-        const storedTrashedFiles = localStorage.getItem('trashedFiles');
-        return storedTrashedFiles ? JSON.parse(storedTrashedFiles) : [];
-      } catch (localError) {
-        console.error('Error getting local trash files:', localError);
-        return [];
-      }
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -663,6 +705,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         restoreFromTrash,
         emptyTrash,
         getTrashFiles,
+        refreshFiles: loadFiles,
       }}
     >
       {children}

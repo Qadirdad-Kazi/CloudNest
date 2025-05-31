@@ -4,7 +4,7 @@ import multer from 'multer';
 import { GridFSBucket } from 'mongodb';
 import mongoose from 'mongoose';
 import { Readable } from 'stream';
-import File from '../models/File.js';
+import { File } from '../models/File.js';
 
 const router = express.Router();
 

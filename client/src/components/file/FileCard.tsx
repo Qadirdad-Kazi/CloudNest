@@ -47,12 +47,12 @@ const FileCard: React.FC<FileCardProps> = ({
   
   // Get the file icon or thumbnail based on type
   const getFileIcon = () => {
-    // If it's an image with a Cloudinary URL, show the actual image thumbnail
-    if (file.cloudinaryUrl && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(file.type.toLowerCase())) {
+    // If it's an image from Cloudinary, show the actual image thumbnail
+    if (file.cloudProvider === 'cloudinary' && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(file.type.toLowerCase())) {
       return (
         <div className="relative w-10 h-10 overflow-hidden rounded-md">
           <img 
-            src={file.cloudinaryUrl} 
+            src={file.url} 
             alt={file.name} 
             className="object-cover w-full h-full" 
           />
@@ -61,7 +61,7 @@ const FileCard: React.FC<FileCardProps> = ({
     }
     
     // If it's a document stored in MongoDB, show a document icon with a lock symbol
-    if (file.mongodbId && ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(file.type.toLowerCase())) {
+    if (file.cloudProvider === 'mongodb' && ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(file.type.toLowerCase())) {
       return (
         <div className="relative">
           <FileText className="w-8 h-8 text-red-500" />
@@ -124,51 +124,67 @@ const FileCard: React.FC<FileCardProps> = ({
     }
   };
 
-  const handleDownload = async (e: React.MouseEvent) => {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    
-    try {
-      // If it's a MongoDB document, fetch it from MongoDB
-      if (file.mongodbId) {
-        const documentBlob = await mongodbService.getDocument(file.mongodbId);
-        const url = URL.createObjectURL(documentBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-      // If it's a Cloudinary image, download it from Cloudinary
-      else if (file.cloudinaryUrl) {
-        const a = document.createElement('a');
-        a.href = file.cloudinaryUrl;
-        a.download = file.name;
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-      // Otherwise use the default download handler
-      else {
-        onDownload(file);
-      }
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      // Fallback to the default download handler
+    if (onDelete) {
+      onDelete(file);
+    }
+  };
+
+  const handleRestore = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onRestore) {
+      onRestore(file);
+    }
+  };
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onDownload) {
       onDownload(file);
     }
   };
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleShare = async (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    onClick(file);
+    if (onShare) {
+      onShare(file);
+    }
+  };
+
+  const handleStar = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onStar) {
+      onStar(file);
+    }
+  };
+
+  const handleRename = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onRename) {
+      onRename(file);
+    }
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (onClick) {
+      onClick(file);
+    }
   };
 
   const handleSelect = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    onSelect(file);
+    if (onSelect) {
+      onSelect(file);
+    }
   };
 
   const handleMenuToggle = (e: React.MouseEvent) => {
@@ -214,20 +230,45 @@ const FileCard: React.FC<FileCardProps> = ({
               <div className="flex flex-col space-y-2">
                 {!isInTrash && (
                   <>
-                    <button key={`star-${file.id}`} onClick={() => { setShowMenu(false); onStar(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                      <Star className="w-4 h-4" />
+                    <button 
+                      key={`star-${file.id}`} 
+                      onClick={handleStar} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center space-x-2"
+                    >
+                      <Star className={`w-4 h-4 ${file.starred ? 'text-yellow-500 fill-yellow-500' : 'text-gray-500 dark:text-gray-400'}`} />
+                      <span>{file.starred ? 'Unstar' : 'Star'}</span>
                     </button>
-                    <button key={`rename-${file.id}`} onClick={() => { setShowMenu(false); onRename(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                      <Edit className="w-4 h-4" />
+                    <button 
+                      key={`rename-${file.id}`} 
+                      onClick={handleRename} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center space-x-2"
+                    >
+                      <Edit className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      <span>Rename</span>
                     </button>
-                    <button key={`share-${file.id}`} onClick={() => { setShowMenu(false); onShare(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                      <Share2 className="w-4 h-4" />
+                    <button 
+                      key={`share-${file.id}`} 
+                      onClick={handleShare} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center space-x-2"
+                    >
+                      <Share2 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      <span>Share</span>
                     </button>
-                    <button key={`download-${file.id}`} onClick={(e) => { setShowMenu(false); handleDownload(e); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                      <Download className="w-4 h-4" />
+                    <button 
+                      key={`download-${file.id}`} 
+                      onClick={handleDownload} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center space-x-2"
+                    >
+                      <Download className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      <span>Download</span>
                     </button>
-                    <button key={`delete-${file.id}`} onClick={() => { setShowMenu(false); onDelete(file); }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-red-500">
+                    <button 
+                      key={`delete-${file.id}`} 
+                      onClick={handleDelete} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center space-x-2 text-red-500"
+                    >
                       <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
                     </button>
                   </>
                 )}
@@ -236,10 +277,7 @@ const FileCard: React.FC<FileCardProps> = ({
                   <>
                     <button 
                       key={`restore-${file.id}`}
-                      onClick={() => { 
-                        setShowMenu(false); 
-                        if (onRestore) onRestore(file); 
-                      }} 
+                      onClick={handleRestore} 
                       className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-green-500"
                     >
                       <span className="flex items-center">
@@ -251,10 +289,8 @@ const FileCard: React.FC<FileCardProps> = ({
                       </span>
                     </button>
                     <button 
-                      onClick={() => { 
-                        setShowMenu(false); 
-                        onDelete(file); 
-                      }} 
+                      key={`delete-${file.id}`}
+                      onClick={handleDelete} 
                       className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-red-500"
                     >
                       <span className="flex items-center">
@@ -276,16 +312,28 @@ const FileCard: React.FC<FileCardProps> = ({
           <div className="flex-1 truncate">
             <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {formatFileSize(file.size)} • {formatDate(file.modifiedAt)}
+              {formatFileSize(file.size)} • {formatDate(file.updatedAt)}
             </p>
           </div>
         </div>
         
-        {file.starred && (
-          <div className="absolute top-2 left-2">
-            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-          </div>
-        )}
+        {/* Star icon - always visible but with different styles */}
+        <div 
+          className={`absolute top-2 left-2 cursor-pointer hover:scale-110 transition-transform`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleStar(e);
+          }}
+        >
+          <Star 
+            className={`w-4 h-4 ${
+              file.starred 
+                ? 'text-yellow-500 fill-yellow-500' 
+                : 'text-gray-400 dark:text-gray-600 hover:text-yellow-500 dark:hover:text-yellow-500'
+            }`} 
+          />
+        </div>
       </div>
     </div>
   );

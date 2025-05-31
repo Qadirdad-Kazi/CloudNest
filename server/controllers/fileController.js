@@ -1,4 +1,4 @@
-import File from '../models/File.js';
+import { File } from '../models/File.js';
 import mongoose from 'mongoose';
 import cloudinary from '../config/cloudinary.js';
 import { GridFSBucket } from 'mongodb';

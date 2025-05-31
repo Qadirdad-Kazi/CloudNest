@@ -135,10 +135,18 @@ router.patch('/:id/star', async (req, res) => {
     
     const updatedFolder = await folderService.toggleStar(userId, id);
     
+    // Return complete folder data with consistent format
     res.json({
-      id: updatedFolder._id,
+      id: updatedFolder._id.toString(),
+      name: updatedFolder.name,
+      path: updatedFolder.path,
+      parentPath: updatedFolder.parentPath,
+      createdAt: updatedFolder.createdAt.toISOString(),
+      modifiedAt: updatedFolder.modifiedAt.toISOString(),
+      owner: updatedFolder.userId.toString(),
       starred: updatedFolder.isStarred,
-      modifiedAt: updatedFolder.modifiedAt
+      shared: false,
+      tags: []
     });
   } catch (error) {
     console.error('Error updating star status:', error);

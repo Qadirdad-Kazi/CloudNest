@@ -1,4 +1,4 @@
-import File from '../models/File.js';
+import { File } from '../models/File.js';
 import mongoose from 'mongoose';
 import { GridFSBucket } from 'mongodb';
 import { Readable } from 'stream';
@@ -11,6 +11,20 @@ mongoose.connection.once('open', () => {
 });
 
 export const fileService = {
+  // Get file by ID
+  async getFileById(userId, fileId) {
+    try {
+      const file = await File.findOne({ _id: fileId, userId });
+      if (!file) {
+        throw new Error('File not found');
+      }
+      return file;
+    } catch (error) {
+      console.error('Error getting file by ID:', error);
+      throw error;
+    }
+  },
+
   // Get files in a directory
   async getFiles(userId, parentPath = '/') {
     try {
@@ -22,7 +36,7 @@ export const fileService = {
         isDeleted: false
       })
       .sort({ isStarred: -1, name: 1 })
-      .select('-__v')
+      .select('_id userId name type size path parentPath category cloudProvider cloudId url isStarred isDeleted deletedAt lastAccessed createdAt modifiedAt')
       .lean();
       
       console.log(`Found ${files.length} files`);
@@ -271,16 +285,27 @@ export const fileService = {
   // Toggle star status
   async toggleStar(userId, fileId) {
     try {
-      const file = await File.findOne({ _id: fileId, userId });
+      console.log('Toggling star status for file:', fileId, 'user:', userId);
       
-      if (!file) {
+      // First get the current file to check its star status
+      const currentFile = await File.findOne({ _id: fileId, userId });
+      if (!currentFile) {
         throw new Error('File not found');
       }
-
-      file.isStarred = !file.isStarred;
-      file.modifiedAt = new Date();
       
-      await file.save();
+      // Toggle the star status
+      const file = await File.findOneAndUpdate(
+        { _id: fileId, userId },
+        { 
+          $set: {
+            isStarred: !currentFile.isStarred,
+            modifiedAt: new Date()
+          }
+        },
+        { new: true }
+      );
+      
+      console.log('Star status updated:', file.isStarred);
       return file;
     } catch (error) {
       console.error('Error toggling star status:', error);

@@ -20,6 +20,7 @@ checkRequiredEnvVars();
 // API configuration using only environment variables
 export const API_CONFIG = {
   BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
+  WS_URL: import.meta.env.VITE_WS_URL || 'ws://localhost:5001',
   CLOUDINARY: {
     CLOUD_NAME: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
     API_KEY: import.meta.env.VITE_CLOUDINARY_API_KEY,
@@ -52,7 +53,15 @@ export type ApiEndpoints = {
     RESTORE: string;
     MOVE_TO_TRASH: string;
     DELETE: string;
-    UPDATE: string; // Added UPDATE property to match implementation
+    UPDATE: string;
+    MONGODB: {
+      DELETE: string;
+      UPLOAD: string;
+      GET: string;
+    };
+    CLOUDINARY: {
+      DELETE: string;
+    };
   };
   FEEDBACK: {
     SUGGESTIONS: string;
@@ -71,6 +80,9 @@ export type ApiEndpoints = {
     DELETE: string;
     LIST: string;
     UPDATE: string;
+    STAR: string;
+    TRASH: string;
+    RESTORE: string;
   };
   SHARES: {
     LIST: string;
@@ -113,7 +125,15 @@ export const API_ENDPOINTS: ApiEndpoints = {
     SHARE: `/files/share`,
     UPDATE: `/files/update`,
     RECENT: `/files/recent`,
-    TRASH: `/files/trash`
+    TRASH: `/files/trash`,
+    MONGODB: {
+      DELETE: `/files/mongodb/delete`,
+      UPLOAD: `/files/mongodb/upload`,
+      GET: `/files/mongodb/get`
+    },
+    CLOUDINARY: {
+      DELETE: `/files/cloudinary/delete`
+    }
   },
   FEEDBACK: {
     SUGGESTIONS: `/feedback/suggestions`,
@@ -131,7 +151,10 @@ export const API_ENDPOINTS: ApiEndpoints = {
     CREATE: `/folders/create`,
     DELETE: `/folders/delete`,
     LIST: `/folders`,
-    UPDATE: `/folders/update`
+    UPDATE: `/folders/update`,
+    STAR: `/folders/star`,
+    TRASH: `/folders/trash`,
+    RESTORE: `/folders/restore`
   },
   SHARES: {
     LIST: `/shares`,
