@@ -183,7 +183,7 @@ router.post('/restore/:fileId', async (req, res) => {
 });
 
 // Permanently delete file
-router.delete('/:fileId', async (req, res) => {
+router.delete('/:fileId', authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
     const { fileId } = req.params;
@@ -230,7 +230,7 @@ router.patch('/star/:fileId', async (req, res) => {
 });
 
 // Empty trash
-router.delete('/trash/empty', async (req, res) => {
+router.delete('/trash/empty', authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
     
@@ -243,19 +243,52 @@ router.delete('/trash/empty', async (req, res) => {
 
     // Delete each file permanently
     const deletePromises = trashedFiles.map(async (file) => {
-      // Delete from cloud storage if applicable
-      if (file.cloudProvider === 'cloudinary' && file.cloudId) {
-        await cloudinary.uploader.destroy(file.cloudId);
-      } else if (file.cloudProvider === 'mongodb' && file.cloudId) {
-        await bucket.delete(new mongoose.Types.ObjectId(file.cloudId));
+      try {
+        // Delete from cloud storage if applicable
+        if (file.cloudProvider === 'cloudinary' && file.cloudId) {
+          try {
+            await cloudinary.uploader.destroy(file.cloudId);
+            console.log(`Successfully deleted file from Cloudinary: ${file.cloudId}`);
+          } catch (cloudinaryError) {
+            console.warn(`Warning: Could not delete from Cloudinary: ${cloudinaryError.message}`);
+            // Continue with deletion even if Cloudinary fails
+          }
+        } else if (file.cloudProvider === 'mongodb' && file.cloudId) {
+          try {
+            await bucket.delete(new mongoose.Types.ObjectId(file.cloudId));
+            console.log(`Successfully deleted file from GridFS: ${file.cloudId}`);
+          } catch (gridFsError) {
+            // If the file doesn't exist in GridFS, just log a warning and continue
+            console.warn(`Warning: Could not delete from GridFS: ${gridFsError.message}`);
+            // Continue with deletion even if GridFS fails
+          }
+        }
+        
+        // Delete file document regardless of cloud storage deletion success
+        await File.deleteOne({ _id: file._id });
+        console.log(`File document deleted from database: ${file._id}`);
+        return { success: true, fileId: file._id };
+      } catch (error) {
+        console.error(`Error deleting file ${file._id}:`, error);
+        return { success: false, fileId: file._id, error };
       }
-      // Delete file document
-      await File.deleteOne({ _id: file._id });
     });
 
-    await Promise.all(deletePromises);
+    const results = await Promise.all(deletePromises);
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.length - successCount;
     
-    res.json({ message: 'Trash emptied successfully' });
+    if (failCount > 0) {
+      console.log(`Warning: ${failCount} out of ${results.length} files had errors during deletion`);
+    }
+    
+    res.json({ 
+      message: failCount > 0 
+        ? `Trash emptied with some issues (${successCount} deleted, ${failCount} failed)` 
+        : 'Trash emptied successfully',
+      success: true,
+      stats: { total: results.length, success: successCount, failed: failCount }
+    });
   } catch (error) {
     console.error('Error emptying trash:', error);
     res.status(500).json({ message: 'Failed to empty trash' });
