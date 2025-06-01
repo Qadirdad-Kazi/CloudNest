@@ -6,8 +6,9 @@ import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 // Constants for file upload
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-// Helper function to normalize file data from server
+// Helper function to normalize file data from server - optimized for performance
 export const normalizeFile = (file: any): FileItem => {
+  // Direct return without unnecessary logging for better performance
   return {
     id: file._id || file.id,
     name: file.name,
@@ -264,19 +265,95 @@ export const fileService = {
   },
   
   /**
-   * Get files in trash
-   * @returns Promise with the list of trashed files
+   * Get trashed files
+   * @returns Promise with array of trashed files
    */
   async getTrashedFiles(): Promise<FileItem[]> {
     try {
       const response = await axios.get(API_ENDPOINTS.FILES.TRASH);
-      return response.data;
-    } catch (error: any) {
-      console.error('Error retrieving trashed files:', error);
-      throw new Error(`Failed to get trashed files: ${error?.message || 'Unknown error'}`);
+      return response.data.map(normalizeFile);
+    } catch (error) {
+      console.error('Error getting trashed files:', error);
+      throw new Error('Failed to get trashed files');
     }
   },
-
+  
+  // Enhanced cache for starred files to improve performance and persistence
+  _starredFilesCache: null as FileItem[] | null,
+  _starredFilesCacheTime: 0,
+  _starredFilesCacheTTL: 60000, // 60 seconds cache TTL (increased for better persistence)
+  
+  /**
+   * Get starred files - enhanced with persistent caching
+   * @returns Promise with array of starred files
+   */
+  async getStarredFiles(): Promise<FileItem[]> {
+    try {
+      // Check if we have a valid cache
+      const now = Date.now();
+      if (
+        this._starredFilesCache && 
+        Array.isArray(this._starredFilesCache) &&
+        this._starredFilesCache.length > 0 &&
+        this._starredFilesCacheTime > 0 && 
+        now - this._starredFilesCacheTime < this._starredFilesCacheTTL
+      ) {
+        // Return cached data if it's still valid
+        // Make sure all files have starred=true for consistency
+        return this._starredFilesCache.map(file => ({
+          ...file,
+          starred: true
+        }));
+      }
+      
+      // Cache miss or expired, fetch from server
+      const response = await axios.get(API_ENDPOINTS.FILES.STARRED);
+      
+      // If server returns empty but we have cached data and it's not too old (within 5 minutes),
+      // use the cached data as fallback to prevent files from disappearing
+      if ((!response.data || response.data.length === 0) && 
+          this._starredFilesCache && 
+          Array.isArray(this._starredFilesCache) &&
+          this._starredFilesCache.length > 0 &&
+          now - this._starredFilesCacheTime < 300000) { // 5 minutes fallback
+        return this._starredFilesCache;
+      }
+      
+      // Process server response
+      const files = response.data.map((file: any) => {
+        const normalized = normalizeFile(file);
+        normalized.starred = true; // Always ensure starred is true
+        return normalized;
+      });
+      
+      // Only update cache if we got actual files
+      if (files && files.length > 0) {
+        this._starredFilesCache = files;
+        this._starredFilesCacheTime = now;
+      }
+      
+      return files;
+    } catch (error: any) {
+      console.error('Error getting starred files:', error);
+      
+      // If there's an error but we have cached data, return it as fallback
+      if (this._starredFilesCache && Array.isArray(this._starredFilesCache) && this._starredFilesCache.length > 0) {
+        return this._starredFilesCache;
+      }
+      
+      throw new Error(`Failed to get starred files: ${error?.message || 'Unknown error'}`);
+    }
+  },
+  
+  /**
+   * Clear the starred files cache
+   * Call this after any operation that might change starred status
+   */
+  clearStarredFilesCache(): void {
+    this._starredFilesCache = null;
+    this._starredFilesCacheTime = 0;
+  },
+  
   /**
    * Move a file to trash
    * @param fileId ID of the file to move to trash
@@ -443,9 +520,9 @@ export const fileService = {
   },
 
   /**
-   * Toggle star status of a file
-   * @param fileId ID of the file to star/unstar
-   * @returns Promise with the updated file
+   * Toggle star status for a file
+   * @param fileId ID of the file to toggle star status
+   * @returns Promise with updated file data
    */
   async toggleStar(fileId: string): Promise<FileItem> {
     try {
@@ -453,23 +530,16 @@ export const fileService = {
         throw new Error('File ID is required');
       }
 
-      console.log('Attempting to toggle star for file:', fileId);
-      console.log('Using endpoint:', `${API_ENDPOINTS.FILES.STAR}/${fileId}`);
-
+      // Make the API call to toggle star status
       const response = await axios.patch(`${API_ENDPOINTS.FILES.STAR}/${fileId}`);
-      console.log('Server response:', response.data);
-      
       const normalizedFile = normalizeFile(response.data);
-      console.log('Normalized file:', normalizedFile);
+      
+      // Clear the starred files cache since we've changed a star status
+      this.clearStarredFilesCache();
       
       return normalizedFile;
     } catch (error: any) {
       console.error('Error toggling star status:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
       throw new Error(`Failed to toggle star status: ${error?.message || 'Unknown error'}`);
     }
   },

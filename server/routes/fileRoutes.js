@@ -110,7 +110,7 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 // Get recent files
-router.get('/recent', async (req, res) => {
+router.get('/recent', authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
     const days = parseInt(req.query.days) || 7;
@@ -120,6 +120,29 @@ router.get('/recent', async (req, res) => {
   } catch (error) {
     console.error('Error getting recent files:', error);
     res.status(500).json({ message: 'Failed to get recent files' });
+  }
+});
+
+// Get starred files
+router.get('/starred', authenticate, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    console.log(`Getting starred files for user ${userId}`);
+    
+    const starredFiles = await File.find({
+      userId,
+      isStarred: true,
+      isDeleted: false
+    })
+    .sort({ modifiedAt: -1 })
+    .select('_id userId name type size path parentPath category cloudProvider cloudId url isStarred isDeleted deletedAt lastAccessed createdAt modifiedAt')
+    .lean();
+    
+    console.log(`Found ${starredFiles.length} starred files`);
+    res.json(starredFiles);
+  } catch (error) {
+    console.error('Error getting starred files:', error);
+    res.status(500).json({ message: 'Failed to get starred files' });
   }
 });
 
@@ -197,7 +220,7 @@ router.delete('/:fileId', authenticate, async (req, res) => {
 });
 
 // Toggle star status
-router.patch('/star/:fileId', async (req, res) => {
+router.patch('/star/:fileId', authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
     const { fileId } = req.params;

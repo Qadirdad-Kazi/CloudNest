@@ -48,6 +48,7 @@ export type ApiEndpoints = {
     DOWNLOAD: string;
     SHARE: string;
     STAR: string;
+    STARRED: string;
     RECENT: string;
     TRASH: string;
     EMPTY_TRASH: string;
@@ -124,6 +125,7 @@ export const API_ENDPOINTS: ApiEndpoints = {
     RESTORE: `/files/restore`,
     EMPTY_TRASH: `/files/trash/empty`,
     STAR: `/files/star`,
+    STARRED: `/files/starred`,
     SHARE: `/files/share`,
     UPDATE: `/files/update`,
     RECENT: `/files/recent`,

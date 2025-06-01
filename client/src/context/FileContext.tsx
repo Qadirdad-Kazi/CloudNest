@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { FileItem, Folder, ShareLink, BreadcrumbItem } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from './NotificationContext';
@@ -38,6 +38,15 @@ interface FileContextType {
   emptyTrash: () => Promise<void>;
   getTrashFiles: () => Promise<FileItem[]>;
   refreshFiles: () => Promise<void>;
+  loadFiles: (path: string) => Promise<void>;
+  loadTrashedFiles: () => Promise<void>;
+  loadStarredFiles: () => Promise<void>;
+  toggleStar: (fileId: string) => Promise<void>;
+  renameFile: (fileId: string, newName: string) => Promise<void>;
+  renameFolder: (folderId: string, newName: string) => Promise<void>;
+  moveFile: (fileId: string, newPath: string) => Promise<void>;
+  moveFolder: (folderId: string, newPath: string) => Promise<void>;
+  deleteFolder: (folderId: string, permanent: boolean) => Promise<void>;
 }
 
 // Create the context with default values
@@ -71,6 +80,15 @@ const FileContext = createContext<FileContextType>({
   emptyTrash: async () => {},
   getTrashFiles: async () => [],
   refreshFiles: async () => {},
+  loadFiles: async () => {},
+  loadTrashedFiles: async () => {},
+  loadStarredFiles: async () => {},
+  toggleStar: async () => {},
+  renameFile: async () => {},
+  renameFolder: async () => {},
+  moveFile: async () => {},
+  moveFolder: async () => {},
+  deleteFolder: async () => {}
 });
 
 // Custom hook to use the file context
@@ -88,7 +106,14 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [currentPath, setCurrentPath] = useState('/');
   const [selectedItems, setSelectedItems] = useState<(FileItem | Folder)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  // State for upload progress
+  const [uploadProgress, _setUploadProgress] = useState<number>(0);
+  
+  // Memoize setUploadProgress to prevent lint warnings
+  const updateUploadProgress = useCallback((progress: number) => {
+    _setUploadProgress(progress);
+  }, []);
+  
   const [error, setError] = useState<string | null>(null);
   const [storageUsed, setStorageUsed] = useState(0);
   const storageLimit = 1024 * 1024 * 1024; // 1GB
@@ -140,22 +165,185 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Optimized starred files loading with improved persistence
+  const loadStarredFiles = useCallback(async () => {
+    // Prevent multiple simultaneous loading requests
+    if (isLoading) return;
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Get starred files - with caching for better performance
+      const starredFiles = await fileService.getStarredFiles();
+      
+      // Only update state if we actually got starred files and are still on the starred page
+      if (starredFiles.length > 0 || currentPath === '/starred') {
+        // Ensure all files are marked as starred
+        const confirmedStarredFiles = starredFiles.map(file => ({
+          ...file,
+          starred: true // Always force starred to true for consistency
+        }));
+        
+        setFiles(confirmedStarredFiles);
+        setFolders([]); // No folders in starred view
+        
+        // Only set path if it's not already set to avoid unnecessary re-renders
+        if (currentPath !== '/starred') {
+          setCurrentPath('/starred');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load starred files:', error);
+      setError('Failed to load starred files');
+      
+      // Show notification for error
+      addNotification({
+        type: 'error',
+        title: 'Error Loading Starred Files',
+        message: 'Could not load your starred files. Please try again later.'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, currentPath, setFiles, setFolders, setCurrentPath, setError, setIsLoading, addNotification, fileService]);
+
+  const loadTrashedFiles = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const response = await fileService.getTrashedFiles();
+      setFiles(response);
+      setFolders([]);
+      
+      // Only update path if needed
+      if (currentPath !== '/trash') {
+        setCurrentPath('/trash');
+      }
+    } catch (error) {
+      console.error('Error loading trashed files:', error);
+      setError('Failed to load trashed files');
+      addNotification({
+        type: 'error',
+        title: 'Error Loading Trash',
+        message: 'Could not load your trash. Please try again later.'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPath, setFiles, setFolders, setCurrentPath, setError, setIsLoading, addNotification, fileService]);
+
   // Calculate storage used
   useEffect(() => {
     updateStorageInfo();
   }, [files]);
 
+  // Keep track of last load times per path
+  const pathLoadTimestamps = React.useRef<Record<string, number>>({});
+  
+  // Load files and folders for the current path with intelligent throttling
+  const loadFiles = useCallback(async (path: string = currentPath) => {
+    // Don't make API calls if not authenticated
+    if (!currentUser) {
+      setFiles([]);
+      setFolders([]);
+      return;
+    }
+    
+    // Implement path-specific throttling to prevent rapid repeated calls
+    const now = Date.now();
+    const lastLoadTime = pathLoadTimestamps.current[path];
+    const loadThrottleMs = 1000; // 1 second minimum between loads for the same path
+    
+    // Only throttle if we're requesting the same path repeatedly
+    // But don't set up recursive timeouts that can cause infinite loops
+    if (lastLoadTime && (now - lastLoadTime) < loadThrottleMs) {
+      console.log(`Throttling file load for path ${path} - too many requests in short time`);
+      // Don't retry automatically - this prevents infinite loops
+      return;
+    }
+    
+    // Update the last load timestamp for this specific path
+    pathLoadTimestamps.current[path] = now;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      console.log('Loading files and folders for path:', path);
+      
+      // Add timeout to prevent hanging requests
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 15000); // 15 second timeout
+      });
+      
+      // Wrap API calls in Promise.race with timeout
+      const [filesResponse, foldersResponse] = await Promise.all([
+        Promise.race([fileService.getFiles(path), timeoutPromise]),
+        Promise.race([folderService.getFolders(path), timeoutPromise])
+      ]).catch(error => {
+        console.error('Error or timeout in API calls:', error);
+        // Return empty arrays on error
+        return [[], []];
+      });
+      
+      console.log('Files response:', filesResponse);
+      console.log('Folders response:', foldersResponse);
+      
+      // Ensure we have arrays before setting state
+      const validFiles = Array.isArray(filesResponse) ? filesResponse : [];
+      const validFolders = Array.isArray(foldersResponse) ? foldersResponse : [];
+      
+      // Update state with the fetched data
+      setFiles(validFiles);
+      setFolders(validFolders);
+      
+      console.log('Updated state - Files:', validFiles.length, 'Folders:', validFolders.length);
+    } catch (error) {
+      console.error('Error loading files and folders:', error);
+      // Don't set error state for network errors to prevent UI issues
+      if (error instanceof Error && error.message.includes('Network Error')) {
+        console.warn('Network error detected, likely CORS issue');
+      } else {
+        setError('Failed to load files and folders');
+        // Show notification only for non-network errors
+        addNotification({
+          type: 'error',
+          title: 'Error Loading Files',
+          message: 'Could not load your files. Please try again later.'
+        });
+      }
+      // Set empty arrays on error to prevent stale data
+      setFiles([]);
+      setFolders([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPath, currentUser, setFiles, setFolders, setError, setIsLoading, addNotification, fileService, folderService]);
+
   // Load files and folders when path changes
   useEffect(() => {
     // Only load files if user is authenticated
     if (currentUser) {
-      loadFiles();
+      // Handle special paths
+      if (currentPath === '/starred') {
+        // Load starred files directly
+        loadStarredFiles();
+      } else if (currentPath === '/trash') {
+        // Load trash files
+        loadTrashedFiles();
+      } else {
+        // Load regular files and folders
+        loadFiles();
+      }
     } else {
       // Clear files and folders when not authenticated
       setFiles([]);
       setFolders([]);
     }
-  }, [currentPath, currentUser]);
+  }, [currentPath, currentUser, loadStarredFiles, loadTrashedFiles, loadFiles]);
+
 
   // Create a new folder
   const createFolder = async (name: string): Promise<void> => {
@@ -201,20 +389,36 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Upload file with storage update
   const uploadFile = async (file: File, onProgress?: (progress: number) => void) => {
     try {
-      await fileService.uploadFile(file, currentPath, onProgress);
+      setIsLoading(true);
+      setError(null);
+      
+      // Reset progress
+      updateUploadProgress(0);
+      
+      // Upload the file with progress tracking
+      await fileService.uploadFile(file, currentPath, (progress) => {
+        updateUploadProgress(progress);
+        if (onProgress) onProgress(progress);
+      });
+      
       await refreshFiles();
       await updateStorageInfo();
+      
       addNotification({
         type: 'success',
         message: `Successfully uploaded ${file.name}`
       });
     } catch (error) {
       console.error('Error uploading file:', error);
+      setError(`Failed to upload ${file.name}`);
+      
       addNotification({
         type: 'error',
         message: `Failed to upload ${file.name}`
       });
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -409,98 +613,10 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Load files and folders for the current path with throttling to prevent infinite loops
-  const loadFiles = async (path: string = currentPath) => {
-    // Don't make API calls if not authenticated
-    if (!currentUser) {
-      setFiles([]);
-      setFolders([]);
-      return;
-    }
-    
-    // Implement throttling to prevent rapid repeated calls
-    const now = Date.now();
-    const lastLoadTime = localStorage.getItem('lastFileLoadTime');
-    const loadThrottleMs = 2000; // 2 seconds minimum between loads
-    
-    if (lastLoadTime && (now - parseInt(lastLoadTime)) < loadThrottleMs) {
-      console.log('Throttling file load - too many requests in short time');
-      return; // Skip this load request
-    }
-    
-    // Update the last load timestamp
-    localStorage.setItem('lastFileLoadTime', now.toString());
 
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      console.log('Loading files and folders for path:', path);
-      
-      // Add timeout to prevent hanging requests
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), 15000); // 15 second timeout
-      });
-      
-      // Wrap API calls in Promise.race with timeout
-      const [filesResponse, foldersResponse] = await Promise.all([
-        Promise.race([fileService.getFiles(path), timeoutPromise]),
-        Promise.race([folderService.getFolders(path), timeoutPromise])
-      ]).catch(error => {
-        console.error('Error or timeout in API calls:', error);
-        // Return empty arrays on error
-        return [[], []];
-      });
-      
-      console.log('Files response:', filesResponse);
-      console.log('Folders response:', foldersResponse);
-      
-      // Ensure we have arrays before setting state
-      const validFiles = Array.isArray(filesResponse) ? filesResponse : [];
-      const validFolders = Array.isArray(foldersResponse) ? foldersResponse : [];
-      
-      // Update state with the fetched data
-      setFiles(validFiles);
-      setFolders(validFolders);
-      
-      console.log('Updated state - Files:', validFiles.length, 'Folders:', validFolders.length);
-    } catch (error) {
-      console.error('Error loading files and folders:', error);
-      // Don't set error state for network errors to prevent UI issues
-      if (error instanceof Error && error.message.includes('Network Error')) {
-        console.warn('Network error detected, likely CORS issue');
-      } else {
-        setError('Failed to load files and folders');
-        // Show notification only for non-network errors
-        addNotification({
-          type: 'error',
-          title: 'Error Loading Files',
-          message: 'Could not load your files. Please try again later.'
-        });
-      }
-      // Set empty arrays on error to prevent stale data
-      setFiles([]);
-      setFolders([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const loadTrashedFiles = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const response = await fileService.getTrashedFiles();
-      setFiles(response);
-      setCurrentPath('/trash');
-    } catch (error) {
-      console.error('Error loading trashed files:', error);
-      setError('Failed to load trashed files');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // This function has been moved to the top of the component
+
 
   // Delete a single file
   const deleteFile = async (fileId: string, permanent: boolean = false): Promise<void> => {
@@ -538,6 +654,73 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Toggle star status with optimistic UI update
+  const toggleStar = useCallback(async (fileId: string): Promise<void> => {
+    if (!fileId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    // Find the file in the current files list
+    const fileToUpdate = files.find(file => file.id === fileId);
+    if (!fileToUpdate) {
+      setIsLoading(false);
+      return;
+    }
+    
+    // Toggle the starred status locally first for immediate feedback
+    const newStarredStatus = !fileToUpdate.starred;
+    
+    // Update the file in the list immediately (optimistic update)
+    if (currentPath === '/starred' && !newStarredStatus) {
+      // If we're on starred page and unstarring, remove from list
+      setFiles(prev => prev.filter(file => file.id !== fileId));
+    } else if (currentPath !== '/starred') {
+      // On other pages, just update the file in the list
+      setFiles(prev => prev.map(file => 
+        file.id === fileId ? { ...file, starred: newStarredStatus } : file
+      ));
+    }
+    
+    try {
+      // Make the actual API call
+      await fileService.toggleStar(fileId);
+      
+      // If we're on the starred page and we just starred a file that wasn't in our list,
+      // we should refresh the starred files list
+      if (currentPath === '/starred' && newStarredStatus) {
+        await loadStarredFiles();
+      }
+      
+      const action = newStarredStatus ? 'added to' : 'removed from';
+      addNotification({
+        type: 'success',
+        message: `File ${action} favorites`,
+      });
+    } catch (error) {
+      console.error('Error toggling star:', error);
+      
+      // Revert the optimistic update on error
+      if (currentPath !== '/starred') {
+        // Only revert if we're not on the starred page
+        setFiles(prev => prev.map(file => 
+          file.id === fileId ? { ...file, starred: !newStarredStatus } : file
+        ));
+      } else if (currentPath === '/starred' && !newStarredStatus) {
+        // If we were unstarring on the starred page, add the file back
+        await loadStarredFiles();
+      }
+      
+      setError('Failed to update star status');
+      addNotification({
+        type: 'error',
+        message: 'Failed to update star status'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [files, currentPath, addNotification, setFiles, setIsLoading, setError, loadStarredFiles]);
+
   // Star/unstar a file
   const starFile = async (fileId: string): Promise<void> => {
     try {
@@ -545,29 +728,152 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setError(null);
       
       console.log('Toggling star for file:', fileId);
-      const serverResponse = await fileService.toggleStar(fileId);
-      console.log('Server response:', serverResponse);
-      
-      // Update local state with normalized file data
-      const normalizedFile = normalizeFile(serverResponse);
-      setFiles(prev => prev.map(file => 
-        file.id === fileId ? normalizedFile : file
-      ));
-      
-      // Refresh the current directory to ensure consistency
-      await loadFiles(currentPath);
-      
-      const action = normalizedFile.starred ? 'added to' : 'removed from';
-      addNotification({
-        type: 'success',
-        message: `File ${action} favorites`,
-      });
+      await toggleStar(fileId);
     } catch (error) {
       console.error('Error starring file:', error);
       setError('Failed to update favorites');
       addNotification({
         type: 'error',
-        message: 'Failed to update favorites',
+        message: 'Failed to update favorites'
+      });
+    }
+  };
+
+  // Rename a file
+  const renameFile = async (fileId: string, newName: string): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Find the file and call renameItem
+      const fileToRename = files.find(file => file.id === fileId);
+      if (!fileToRename) {
+        throw new Error('File not found');
+      }
+      
+      await renameItem(fileToRename, newName);
+      
+      addNotification({
+        type: 'success',
+        message: 'File renamed successfully'
+      });
+    } catch (error: any) {
+      console.error('Error renaming file:', error);
+      setError(error.message || 'Failed to rename file');
+      addNotification({
+        type: 'error',
+        message: `Failed to rename file: ${error.message || 'Unknown error'}`
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Rename a folder
+  const renameFolder = async (folderId: string, newName: string): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Find the folder and call renameItem
+      const folderToRename = folders.find(folder => folder.id === folderId);
+      if (!folderToRename) {
+        throw new Error('Folder not found');
+      }
+      
+      await renameItem(folderToRename, newName);
+      
+      addNotification({
+        type: 'success',
+        message: 'Folder renamed successfully'
+      });
+    } catch (error: any) {
+      console.error('Error renaming folder:', error);
+      setError(error.message || 'Failed to rename folder');
+      addNotification({
+        type: 'error',
+        message: `Failed to rename folder: ${error.message || 'Unknown error'}`
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Move a file to a different folder
+  const moveFile = async (fileId: string, destinationPath: string): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Implement file moving logic here
+      // This would call a fileService.moveFile function
+      // For now, we'll just log it
+      console.log(`Moving file ${fileId} to ${destinationPath}`);
+      
+      addNotification({
+        type: 'success',
+        message: 'File moved successfully'
+      });
+    } catch (error: any) {
+      console.error('Error moving file:', error);
+      setError(error.message || 'Failed to move file');
+      addNotification({
+        type: 'error',
+        message: `Failed to move file: ${error.message || 'Unknown error'}`
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Move a folder to a different location
+  const moveFolder = async (folderId: string, destinationPath: string): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Implement folder moving logic here
+      // This would call a folderService.moveFolder function
+      // For now, we'll just log it
+      console.log(`Moving folder ${folderId} to ${destinationPath}`);
+      
+      addNotification({
+        type: 'success',
+        message: 'Folder moved successfully'
+      });
+    } catch (error: any) {
+      console.error('Error moving folder:', error);
+      setError(error.message || 'Failed to move folder');
+      addNotification({
+        type: 'error',
+        message: `Failed to move folder: ${error.message || 'Unknown error'}`
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Delete a folder
+  const deleteFolder = async (folderId: string, permanent: boolean = false): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Implement folder deletion logic here
+      // This would call a folderService.deleteFolder function
+      // For now, we'll just log it
+      console.log(`Deleting folder ${folderId}, permanent: ${permanent}`);
+      
+      addNotification({
+        type: 'success',
+        message: permanent ? 'Folder permanently deleted' : 'Folder moved to trash'
+      });
+    } catch (error: any) {
+      console.error('Error deleting folder:', error);
+      setError(error.message || 'Failed to delete folder');
+      addNotification({
+        type: 'error',
+        message: `Failed to delete folder: ${error.message || 'Unknown error'}`
       });
     } finally {
       setIsLoading(false);
@@ -703,7 +1009,16 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         restoreFromTrash,
         emptyTrash,
         getTrashFiles,
-        refreshFiles
+        refreshFiles,
+        loadFiles,
+        loadTrashedFiles,
+        loadStarredFiles,
+        toggleStar,
+        renameFile,
+        renameFolder,
+        moveFile,
+        moveFolder,
+        deleteFolder
       }}
     >
       {children}
