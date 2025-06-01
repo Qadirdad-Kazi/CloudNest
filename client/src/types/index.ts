@@ -16,20 +16,21 @@ export interface FileItem {
   type: string;
   size: number;
   path: string;
-  parentPath: string;
-  category: string;
+  parentPath?: string;
+  category?: string;
   cloudProvider: 'cloudinary' | 'mongodb';
-  cloudId: string;
+  cloudId?: string;
   url: string;
   starred: boolean;
   shared: boolean;
   modifiedAt: string;
   createdAt: string;
-  lastAccessed: string;
+  lastAccessed?: string;
   isDeleted: boolean;
   deletedAt: string | null;
   inTrash: boolean;
   mongodbId?: string;
+  owner?: string;
 }
 
 export interface Folder {

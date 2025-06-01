@@ -14,7 +14,6 @@ import {
   Lock
 } from 'lucide-react';
 import { FileItem } from '../../types';
-import { mongodbService } from '../../services/mongodbService';
 
 interface FileCardProps {
   file: FileItem;
@@ -50,7 +49,7 @@ const FileCard: React.FC<FileCardProps> = ({
   // Get the file icon or thumbnail based on type
   const getFileIcon = (size: 'small' | 'large' = 'large') => {
     // If it's an image from Cloudinary, show the actual image thumbnail
-    if (file.cloudProvider === 'cloudinary' && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(file.type.toLowerCase())) {
+    if (file.cloudProvider === 'cloudinary' && (file.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].some(ext => file.type.toLowerCase().includes(ext) || (file.name && file.name.toLowerCase().endsWith(ext))))) {
       return (
         <div className={`relative ${size === 'large' ? 'w-full pt-[100%]' : 'w-10 h-10'} overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-700`}>
           <img 

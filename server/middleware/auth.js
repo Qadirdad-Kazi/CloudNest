@@ -40,7 +40,7 @@ export const authenticate = async (req, res, next) => {
       res.clearCookie('token', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict'
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
       });
     }
     res.status(401).json({ message: 'Authentication failed, please login again' });

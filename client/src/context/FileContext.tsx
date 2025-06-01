@@ -409,7 +409,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Load files and folders for the current path
+  // Load files and folders for the current path with throttling to prevent infinite loops
   const loadFiles = async (path: string = currentPath) => {
     // Don't make API calls if not authenticated
     if (!currentUser) {
@@ -417,6 +417,19 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setFolders([]);
       return;
     }
+    
+    // Implement throttling to prevent rapid repeated calls
+    const now = Date.now();
+    const lastLoadTime = localStorage.getItem('lastFileLoadTime');
+    const loadThrottleMs = 2000; // 2 seconds minimum between loads
+    
+    if (lastLoadTime && (now - parseInt(lastLoadTime)) < loadThrottleMs) {
+      console.log('Throttling file load - too many requests in short time');
+      return; // Skip this load request
+    }
+    
+    // Update the last load timestamp
+    localStorage.setItem('lastFileLoadTime', now.toString());
 
     try {
       setIsLoading(true);
@@ -424,10 +437,20 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       console.log('Loading files and folders for path:', path);
       
+      // Add timeout to prevent hanging requests
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 15000); // 15 second timeout
+      });
+      
+      // Wrap API calls in Promise.race with timeout
       const [filesResponse, foldersResponse] = await Promise.all([
-        fileService.getFiles(path),
-        folderService.getFolders(path)
-      ]);
+        Promise.race([fileService.getFiles(path), timeoutPromise]),
+        Promise.race([folderService.getFolders(path), timeoutPromise])
+      ]).catch(error => {
+        console.error('Error or timeout in API calls:', error);
+        // Return empty arrays on error
+        return [[], []];
+      });
       
       console.log('Files response:', filesResponse);
       console.log('Folders response:', foldersResponse);
@@ -443,7 +466,18 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('Updated state - Files:', validFiles.length, 'Folders:', validFolders.length);
     } catch (error) {
       console.error('Error loading files and folders:', error);
-      setError('Failed to load files and folders');
+      // Don't set error state for network errors to prevent UI issues
+      if (error instanceof Error && error.message.includes('Network Error')) {
+        console.warn('Network error detected, likely CORS issue');
+      } else {
+        setError('Failed to load files and folders');
+        // Show notification only for non-network errors
+        addNotification({
+          type: 'error',
+          title: 'Error Loading Files',
+          message: 'Could not load your files. Please try again later.'
+        });
+      }
       // Set empty arrays on error to prevent stale data
       setFiles([]);
       setFolders([]);

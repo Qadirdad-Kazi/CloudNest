@@ -26,13 +26,13 @@ export const fileService = {
   },
 
   // Get files in a directory
-  async getFiles(userId, parentPath = '/') {
+  async getFiles(userId, path = '/') {
     try {
-      console.log(`Getting files for user ${userId} in path ${parentPath}`);
+      console.log(`Getting files for user ${userId} in path ${path}`);
       
       const files = await File.find({
         userId,
-        parentPath,
+        path, // Filter by path, not parentPath
         isDeleted: false
       })
       .sort({ isStarred: -1, name: 1 })

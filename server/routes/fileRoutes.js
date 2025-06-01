@@ -36,6 +36,79 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Create file record (used for Cloudinary uploads)
+router.post('/', authenticate, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { name, type, size, path, url, cloudProvider } = req.body;
+    
+    console.log('Creating file record with data:', req.body);
+    
+    // Determine file category based on file type
+    let category = 'others';
+    if (type.startsWith('image/')) category = 'images';
+    else if (type.startsWith('video/')) category = 'videos';
+    else if (type.startsWith('audio/')) category = 'audio';
+    else if (type.includes('pdf') || type.includes('doc') || type.includes('sheet') || type.includes('presentation')) category = 'documents';
+    else if (type.includes('zip') || type.includes('rar') || type.includes('tar') || type.includes('gz')) category = 'archives';
+    else if (type.includes('javascript') || type.includes('typescript') || type.includes('python') || type.includes('java') || type.includes('html') || type.includes('css')) category = 'code';
+    
+    // Extract cloudId from URL if using Cloudinary
+    let cloudId = '';
+    if (cloudProvider === 'cloudinary' && url) {
+      // Try to extract the public ID from the Cloudinary URL
+      const matches = url.match(/\/v\d+\/([^\/\.]+)/);
+      cloudId = matches && matches[1] ? matches[1] : `file_${Date.now()}`;
+    } else {
+      // For MongoDB, use the last part of the URL or generate a unique ID
+      cloudId = url ? url.split('/').pop() : `file_${Date.now()}`;
+    }
+    
+    // Create new file document
+    const newFile = new File({
+      userId,
+      name,
+      type,
+      size,
+      path,
+      parentPath: path.split('/').slice(0, -1).join('/') || '/',
+      category,
+      url,
+      cloudProvider,
+      cloudId,
+      isDeleted: false,
+      isStarred: false,
+      createdAt: new Date(),
+      modifiedAt: new Date(),
+      lastAccessed: new Date()
+    });
+    
+    await newFile.save();
+    console.log('File record created successfully:', newFile);
+    
+    // Return the file with formatted fields
+    const formattedFile = {
+      id: newFile._id,
+      name: newFile.name,
+      type: newFile.type,
+      size: newFile.size,
+      path: newFile.path,
+      url: newFile.url,
+      cloudProvider: newFile.cloudProvider,
+      createdAt: newFile.createdAt,
+      modifiedAt: newFile.modifiedAt,
+      owner: newFile.userId,
+      starred: newFile.isStarred,
+      shared: false
+    };
+    
+    res.status(201).json(formattedFile);
+  } catch (error) {
+    console.error('Error creating file record:', error);
+    res.status(500).json({ message: error.message || 'Failed to create file record' });
+  }
+});
+
 // Get recent files
 router.get('/recent', async (req, res) => {
   try {

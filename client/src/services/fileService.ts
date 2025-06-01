@@ -1,12 +1,9 @@
 import axios from '../utils/axios';
 import { FileItem, Folder } from '../types';
 import { cloudinaryService } from './cloudinaryService';
-import { mongodbService } from './mongodbService';
 import { API_ENDPOINTS, API_CONFIG } from '../config/api';
-import { useNotifications } from '../context/NotificationContext';
 
 // Constants for file upload
-const UPLOAD_TIMEOUT = 120000; // 2 minutes
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Helper function to normalize file data from server
@@ -97,23 +94,34 @@ export const fileService = {
    * @param onProgress Optional progress callback
    * @returns Promise<FileItem>
    */
-  async uploadFile(file: File, parentPath: string = '/', onProgress?: (progress: number) => void): Promise<FileItem> {
-    // Validate file first
-    const validation = this.validateFile(file);
-    if (!validation.valid) {
-      throw new Error(validation.error);
-    }
-
+  uploadFile: async (file: File, parentPath: string = '/', onProgress?: (progress: number) => void): Promise<FileItem> => {
+    // Determine if this is an image file that should go to Cloudinary
     const isImage = file.type.startsWith('image/');
     
     try {
       let fileUrl = '';
+      let responseData;
       
       if (isImage) {
         // Upload image to Cloudinary
+        console.log('Uploading image to Cloudinary:', file.name);
         fileUrl = await cloudinaryService.uploadImage(file, onProgress);
+        
+        // Ensure URL has https:// prefix
+        if (fileUrl && !fileUrl.startsWith('http')) {
+          fileUrl = 'https://' + fileUrl;
+        }
+        
+        console.log('Cloudinary upload successful, URL:', fileUrl);
+        
+        // Extract cloudinary ID for debugging
+        const matches = fileUrl.match(/\/v\d+\/([^\/\.]+)/);
+        const cloudId = matches && matches[1] ? matches[1] : null;
+        console.log('Extracted Cloudinary ID:', cloudId);
       } else {
-        // Upload document to MongoDB
+        // For non-image files, use MongoDB GridFS via our API
+        console.log('Uploading file to MongoDB GridFS:', file.name);
+        
         const formData = new FormData();
         formData.append('file', file);
         formData.append('path', parentPath);
@@ -127,15 +135,16 @@ export const fileService = {
             },
             onUploadProgress: (progressEvent) => {
               if (progressEvent.total && onProgress) {
-                const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                onProgress(percent);
+                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                onProgress(percentCompleted);
               }
-            }
+            },
+            timeout: 30000 // 30 seconds timeout
           }
         );
         
-        if (onProgress) onProgress(100);
-        return normalizeFile(response.data);
+        responseData = response.data;
+        fileUrl = responseData.url;
       }
       
       // Create file record in database
@@ -148,11 +157,70 @@ export const fileService = {
         cloudProvider: isImage ? 'cloudinary' : 'mongodb'
       };
       
-      const response = await axios.post(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.LIST}`, fileData);
-      return normalizeFile(response.data);
+      console.log('Creating file record with data:', fileData);
+      
+      try {
+        // Add retry logic for creating file record
+        const maxRetries = 2;
+        let retryCount = 0;
+        let response;
+        
+        while (retryCount <= maxRetries) {
+          try {
+            response = await axios.post(
+              `${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.LIST}`, 
+              fileData,
+              { timeout: 10000 } // 10 second timeout
+            );
+            break; // Success, exit the retry loop
+          } catch (err) {
+            retryCount++;
+            if (retryCount > maxRetries) throw err;
+            console.log(`Retry ${retryCount}/${maxRetries} for creating file record...`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          }
+        }
+        
+        if (!response || !response.data) {
+          throw new Error('No response data received from server');
+        }
+        
+        // Ensure the URL is properly set in the returned data
+        if (response.data && isImage && fileUrl) {
+          response.data.url = fileUrl;
+        }
+        
+        return normalizeFile(response.data);
+      } catch (err: any) {
+        console.error('Error creating file record:', err);
+        
+        // If we failed to create the record but uploaded to Cloudinary,
+        // return a manually constructed file object
+        if (isImage && fileUrl) {
+          console.log('Creating manual file record for Cloudinary image');
+          // Create a manual file object that matches what normalizeFile returns
+          const manualFile: FileItem = {
+            id: `temp-${Date.now()}`,
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            path: parentPath,
+            starred: false,
+            shared: false,
+            inTrash: false,
+            cloudProvider: 'cloudinary',
+            url: fileUrl,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            mongodbId: undefined
+          };
+          return manualFile;
+        }
+        throw err;
+      }
     } catch (error: any) {
       console.error('Error in file upload process:', error);
-      throw error instanceof Error ? error : new Error('Unknown error during upload');
+      throw new Error(`Error uploading file: ${error.message}`);
     }
   },
 
