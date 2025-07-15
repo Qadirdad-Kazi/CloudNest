@@ -2,6 +2,7 @@ import { File } from '../models/File.js';
 import mongoose from 'mongoose';
 import cloudinary from '../config/cloudinary.js';
 import { GridFSBucket } from 'mongodb';
+import User from '../models/User.js';
 
 // Initialize GridFS bucket
 let bucket;
@@ -100,6 +101,14 @@ export const uploadFile = async (req, res) => {
     });
 
     await newFile.save();
+
+    // Patch: Update user's storageUsed after upload
+    const totalUsed = await File.aggregate([
+      { $match: { userId: newFile.userId, isDeleted: false } },
+      { $group: { _id: null, total: { $sum: '$size' } } }
+    ]);
+    await User.findByIdAndUpdate(newFile.userId, { storageUsed: totalUsed[0]?.total || 0 });
+
     res.status(201).json(newFile);
   } catch (error) {
     console.error('Error uploading file:', error);
@@ -146,12 +155,24 @@ export const deleteFile = async (req, res) => {
 
       // Delete file document
       await file.deleteOne();
+      // Patch: Update user's storageUsed after permanent delete
+      const totalUsed = await File.aggregate([
+        { $match: { userId: file.userId, isDeleted: false } },
+        { $group: { _id: null, total: { $sum: '$size' } } }
+      ]);
+      await User.findByIdAndUpdate(file.userId, { storageUsed: totalUsed[0]?.total || 0 });
       res.json({ message: 'File permanently deleted' });
     } else {
       // Move to trash
       file.isDeleted = true;
       file.deletedAt = new Date();
       await file.save();
+      // Patch: Update user's storageUsed after move to trash
+      const totalUsed = await File.aggregate([
+        { $match: { userId: file.userId, isDeleted: false } },
+        { $group: { _id: null, total: { $sum: '$size' } } }
+      ]);
+      await User.findByIdAndUpdate(file.userId, { storageUsed: totalUsed[0]?.total || 0 });
       res.json({ message: 'File moved to trash' });
     }
   } catch (error) {
