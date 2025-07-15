@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import SocialLogin from '../components/SocialLogin';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -9,20 +11,62 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const location = useLocation();
+  const { login, user } = useAuth();
+  
+  // Check for redirect message from registration
+  useEffect(() => {
+    if (location.state?.fromRegister) {
+      toast.success('Registration successful! Please log in.', {
+        position: 'top-center',
+        autoClose: 5000,
+      });
+      // Clear the state to prevent showing the message again on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+  
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Basic validation
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      toast.error('Please fill in all fields', {
+        position: 'top-center',
+      });
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
     
     try {
       const userData = await login(email, password);
       if (userData) {
-        navigate('/dashboard', { replace: true });
+        toast.success('Login successful! Redirecting...', {
+          position: 'top-center',
+          autoClose: 1500,
+        });
+        // Small delay to show success message before redirect
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 1500);
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Invalid credentials');
+      const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage, {
+        position: 'top-center',
+        autoClose: 5000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -47,6 +91,7 @@ const Login: React.FC = () => {
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 py-12 px-4 sm:px-6 lg:px-8">
+      <ToastContainer />
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
         <div>
           <h2 className="mt-4 text-center text-3xl font-extrabold text-gray-900">
@@ -58,8 +103,17 @@ const Login: React.FC = () => {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <span className="block sm:inline">{error}</span>
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4" role="alert">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
           </div>
         )}
 

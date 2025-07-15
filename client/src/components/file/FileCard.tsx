@@ -271,18 +271,21 @@ const FileCard: React.FC<FileCardProps> = ({
                 {!isInTrash ? (
                   <>
                     <button
+                      key="rename"
                       onClick={handleRename}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       Rename
                     </button>
                     <button
+                      key="download"
                       onClick={handleDownload}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       Download
                     </button>
                     <button
+                      key="delete"
                       onClick={handleDelete}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
@@ -292,12 +295,14 @@ const FileCard: React.FC<FileCardProps> = ({
                 ) : (
                   <>
                     <button
+                      key="restore"
                       onClick={handleRestore}
                       className="w-full text-left px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       Restore
                     </button>
                     <button
+                      key="delete-permanently"
                       onClick={handleDelete}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
