@@ -13,7 +13,6 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      external: ['lucide-react'],
       output: {
         manualChunks: {
           'lucide-react': ['lucide-react']
