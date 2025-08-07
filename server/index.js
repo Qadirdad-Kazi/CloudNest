@@ -44,6 +44,11 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/documents', documentRoutes);
 
+// Friendly root route for Vercel
+app.get('/', (req, res) => {
+  res.send('CloudNest API is running');
+});
+
 // Error handling
 app.use(errorHandler);
 
