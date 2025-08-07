@@ -191,6 +191,11 @@ mongoose.connect(process.env.MONGODB_URI)
 // Error handling middleware
 app.use(errorHandler);
 
+// Friendly root route
+app.get('/', (req, res) => {
+  res.send('CloudNest API is running');
+});
+
 const PORT = process.env.PORT || 5000;
 
 // Start server if this file is run directly
