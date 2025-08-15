@@ -9,16 +9,31 @@ const router = express.Router();
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+      if (process.env.DEBUG_AUTH === 'true') {
+        console.warn('Login attempt with missing fields', { hasEmail: !!email, hasPassword: !!password });
+      }
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
     
-    // Find user
-    const user = await User.findOne({ email });
+    // Normalize email and find user
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
+      if (process.env.DEBUG_AUTH === 'true') {
+        console.warn('Login failed: user not found', { email });
+        return res.status(401).json({ message: 'Invalid email or password', reason: 'user_not_found' });
+      }
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      if (process.env.DEBUG_AUTH === 'true') {
+        console.warn('Login failed: password mismatch', { email });
+        return res.status(401).json({ message: 'Invalid email or password', reason: 'password_incorrect' });
+      }
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
@@ -58,8 +73,9 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Check if user exists
-    let user = await User.findOne({ email });
+    // Normalize email and check if user exists
+    const normalizedEmail = email.trim().toLowerCase();
+    let user = await User.findOne({ email: normalizedEmail });
     if (user) {
       return res.status(400).json({ message: 'User already exists' });
     }
@@ -67,7 +83,7 @@ router.post('/register', async (req, res) => {
     // Create user
     user = new User({
       name,
-      email,
+      email: normalizedEmail,
       password
     });
 
