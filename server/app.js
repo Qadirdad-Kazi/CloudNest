@@ -109,7 +109,9 @@ const getMaxFileSize = () => {
 
 // Configure CORS
 const corsOptions = {
-  origin: parseOrigins(),
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.ALLOWED_ORIGINS?.split(',') || ['https://cloudnest.vercel.app']
+    : ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
@@ -125,21 +127,6 @@ const corsOptions = {
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   maxAge: 600 // 10 minutes
 };
-
-// Debug: log allowed origins at startup (helps diagnose env issues)
-console.log('CORS allowed origins:', JSON.stringify(corsOptions.origin));
-
-// Debug: warn when an incoming origin is not in the allowed list (production only)
-app.use((req, res, next) => {
-  if (process.env.NODE_ENV === 'production') {
-    const origin = req.headers.origin;
-    const allowed = Array.isArray(corsOptions.origin) ? corsOptions.origin : [corsOptions.origin];
-    if (origin && !allowed.includes(origin)) {
-      console.warn(`CORS blocked origin: ${origin}. Allowed: ${allowed.join(', ')}`);
-    }
-  }
-  next();
-});
 
 app.use(cors(corsOptions));
 

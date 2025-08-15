@@ -19,44 +19,18 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Helpers to parse env-based origins
-const parseOrigins = () => {
-  if (process.env.ALLOWED_ORIGINS) {
-    return process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
-  }
-  return process.env.NODE_ENV === 'production'
-    ? [process.env.CLIENT_URL].filter(Boolean)
-    : ['http://localhost:5173', 'http://localhost:3000'];
-};
-
-// CORS configuration (env-driven)
+// CORS configuration
 const corsOptions = {
-  origin: parseOrigins(),
+  origin: 'http://localhost:5173', // Your frontend URL
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Access-Control-Request-Method', 'Access-Control-Request-Headers', 'X-CSRF-Token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   maxAge: 600 // 10 minutes
 };
 
-// Debug allowed origins at boot
-console.log('CORS allowed origins (index.js):', JSON.stringify(corsOptions.origin));
-
-// Warn when a request comes from a non-allowed origin (production only)
-app.use((req, res, next) => {
-  if (process.env.NODE_ENV === 'production') {
-    const origin = req.headers.origin;
-    const allowed = Array.isArray(corsOptions.origin) ? corsOptions.origin : [corsOptions.origin];
-    if (origin && !allowed.includes(origin)) {
-      console.warn(`CORS blocked origin (index.js): ${origin}. Allowed: ${allowed.join(', ')}`);
-    }
-  }
-  next();
-});
-
 // Middleware
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

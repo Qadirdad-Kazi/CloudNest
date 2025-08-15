@@ -33,11 +33,10 @@ router.post('/login', async (req, res) => {
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      // Cross-site cookie for different frontend/backend domains
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      // Do not set domain explicitly; let it default to the API host
+      domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : 'localhost'
     });
 
     // Return user data without the token (token is in the cookie)
@@ -85,7 +84,7 @@ router.post('/register', async (req, res) => {
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
@@ -111,8 +110,9 @@ router.post('/logout', (req, res) => {
     res.clearCookie('token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: 'lax',
       path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     });
     
     res.json({ message: 'Logged out successfully' });
