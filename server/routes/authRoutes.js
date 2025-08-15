@@ -9,31 +9,16 @@ const router = express.Router();
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      if (process.env.DEBUG_AUTH === 'true') {
-        console.warn('Login attempt with missing fields', { hasEmail: !!email, hasPassword: !!password });
-      }
-      return res.status(400).json({ message: 'Email and password are required' });
-    }
     
-    // Normalize email and find user
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ email: normalizedEmail });
+    // Find user
+    const user = await User.findOne({ email });
     if (!user) {
-      if (process.env.DEBUG_AUTH === 'true') {
-        console.warn('Login failed: user not found', { email });
-        return res.status(401).json({ message: 'Invalid email or password', reason: 'user_not_found' });
-      }
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      if (process.env.DEBUG_AUTH === 'true') {
-        console.warn('Login failed: password mismatch', { email });
-        return res.status(401).json({ message: 'Invalid email or password', reason: 'password_incorrect' });
-      }
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
@@ -44,14 +29,14 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Set token as HTTP-only cookie (cross-site compatible)
+    // Set token as HTTP-only cookie
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
       path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-      // Do not set domain to keep host-only cookie (works on Vercel deployment host)
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : 'localhost'
     });
 
     // Return user data without the token (token is in the cookie)
@@ -73,9 +58,8 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Normalize email and check if user exists
-    const normalizedEmail = email.trim().toLowerCase();
-    let user = await User.findOne({ email: normalizedEmail });
+    // Check if user exists
+    let user = await User.findOne({ email });
     if (user) {
       return res.status(400).json({ message: 'User already exists' });
     }
@@ -83,7 +67,7 @@ router.post('/register', async (req, res) => {
     // Create user
     user = new User({
       name,
-      email: normalizedEmail,
+      email,
       password
     });
 
@@ -96,11 +80,11 @@ router.post('/register', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Set token as HTTP-only cookie (cross-site compatible)
+    // Set token as HTTP-only cookie
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
@@ -126,8 +110,9 @@ router.post('/logout', (req, res) => {
     res.clearCookie('token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      path: '/'
+      sameSite: 'lax',
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     });
     
     res.json({ message: 'Logged out successfully' });

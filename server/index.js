@@ -20,30 +20,8 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // CORS configuration
-// Read allowed origins from env, comma-separated, no paths
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
-
-// Optional: regex patterns for dynamic origins (e.g., Netlify deploy previews)
-const allowedOriginPatterns = (process.env.ALLOWED_ORIGIN_PATTERNS || '')
-  .split(',')
-  .map(p => p.trim())
-  .filter(Boolean)
-  .map(p => {
-    try { return new RegExp(p); } catch { return null; }
-  })
-  .filter(Boolean);
-
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow non-browser requests (no origin) and allowed origins
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (allowedOriginPatterns.some(rx => rx.test(origin))) return callback(null, true);
-    return callback(new Error(`Not allowed by CORS: ${origin}`));
-  },
+  origin: 'http://localhost:5173', // Your frontend URL
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
@@ -53,8 +31,6 @@ const corsOptions = {
 
 // Middleware
 app.use(cors(corsOptions));
-// Ensure preflight requests are handled
-app.options('*', cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
