@@ -20,8 +20,19 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // CORS configuration
+// Read allowed origins from env, comma-separated, no paths
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
 const corsOptions = {
-  origin: 'http://localhost:5173', // Your frontend URL
+  origin: function (origin, callback) {
+    // Allow non-browser requests (no origin) and allowed origins
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
@@ -31,6 +42,8 @@ const corsOptions = {
 
 // Middleware
 app.use(cors(corsOptions));
+// Ensure preflight requests are handled
+app.options('*', cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

@@ -29,14 +29,14 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Set token as HTTP-only cookie
+    // Set token as HTTP-only cookie (cross-site compatible)
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : 'localhost'
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      // Do not set domain to keep host-only cookie (works on Vercel deployment host)
     });
 
     // Return user data without the token (token is in the cookie)
@@ -80,11 +80,11 @@ router.post('/register', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Set token as HTTP-only cookie
+    // Set token as HTTP-only cookie (cross-site compatible)
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
@@ -110,9 +110,8 @@ router.post('/logout', (req, res) => {
     res.clearCookie('token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
     });
     
     res.json({ message: 'Logged out successfully' });
