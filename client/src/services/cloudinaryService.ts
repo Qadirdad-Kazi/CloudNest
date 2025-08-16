@@ -1,5 +1,6 @@
-import axios from 'axios'; // Use regular axios for Cloudinary
-import { API_CONFIG } from '../config/api';
+import axios from 'axios'; // Use regular axios for Cloudinary uploads
+import api from '../utils/axios'; // Use configured axios instance for our API
+import { API_CONFIG, API_ENDPOINTS } from '../config/api';
 
 // Constants
 const UPLOAD_TIMEOUT = 120000; // 2 minutes
@@ -45,7 +46,8 @@ export const cloudinaryService = {
 
   async deleteImage(publicId: string): Promise<void> {
     try {
-      await axios.delete(`${API_CONFIG.BASE_URL}/api/files/cloudinary/delete/${publicId}`);
+      // Use our API client so baseURL and credentials are correct
+      await api.delete(`${API_ENDPOINTS.FILES.CLOUDINARY.DELETE}/${publicId}`);
     } catch (error) {
       console.error('Error deleting Cloudinary image:', error);
       throw new Error('Failed to delete image from Cloudinary');
