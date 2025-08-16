@@ -1,7 +1,8 @@
 import axios from '../utils/axios';
+import type { AxiosProgressEvent } from 'axios';
 import { FileItem, Folder } from '../types';
 import { cloudinaryService } from './cloudinaryService';
-import { API_ENDPOINTS, API_CONFIG } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
 
 // Constants for file upload
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -128,13 +129,13 @@ export const fileService = {
         formData.append('path', parentPath);
         
         const response = await axios.post(
-          `${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.UPLOAD}`,
+          `${API_ENDPOINTS.FILES.UPLOAD}`,
           formData,
           {
             headers: {
               'Content-Type': 'multipart/form-data'
             },
-            onUploadProgress: (progressEvent) => {
+            onUploadProgress: (progressEvent: AxiosProgressEvent) => {
               if (progressEvent.total && onProgress) {
                 const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                 onProgress(percentCompleted);
@@ -169,7 +170,7 @@ export const fileService = {
         while (retryCount <= maxRetries) {
           try {
             response = await axios.post(
-              `${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.LIST}`, 
+              `${API_ENDPOINTS.FILES.LIST}`, 
               fileData,
               { timeout: 10000 } // 10 second timeout
             );
@@ -415,7 +416,7 @@ export const fileService = {
       // Delete the file record from our database with permanent flag
       // This will trigger the server to clean up associated storage
       console.log('Deleting file record from database:', id);
-      const deleteResponse = await axios.delete(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.LIST}/${id}`, {
+      const deleteResponse = await axios.delete(`${API_ENDPOINTS.FILES.LIST}/${id}`, {
         params: { permanent: true }
       });
 
@@ -479,7 +480,7 @@ export const fileService = {
       
       // Notify the server that trash has been emptied
       try {
-        await axios.delete(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.FILES.EMPTY_TRASH}`);
+        await axios.delete(`${API_ENDPOINTS.FILES.EMPTY_TRASH}`);
       } catch (error) {
         console.error('Error notifying server about empty trash:', error);
         // Don't throw here as files are already deleted

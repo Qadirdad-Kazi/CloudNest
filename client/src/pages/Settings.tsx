@@ -91,7 +91,7 @@ const Settings: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await axios.get(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.USERS.SETTINGS}`);
+        const response = await axios.get(API_ENDPOINTS.USERS.SETTINGS);
         setSettings(prev => ({
           ...prev,
           ...response.data,
@@ -160,7 +160,7 @@ const Settings: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      await axios.put(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.AUTH.RESET_PASSWORD}`, {
+      await axios.put(API_ENDPOINTS.AUTH.RESET_PASSWORD, {
         currentPassword: settings.password.current,
         newPassword: settings.password.new
       });
@@ -189,7 +189,7 @@ const Settings: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.put(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.USERS.SETTINGS}`, {
+      const response = await axios.put(API_ENDPOINTS.USERS.SETTINGS, {
         notifications: settings.notifications,
         privacy: settings.privacy,
         security: settings.security,
@@ -255,7 +255,7 @@ const Settings: React.FC = () => {
         
         // First try to reset on the server
         try {
-          await axios.post(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.USERS.SETTINGS}/reset`);
+          await axios.post(`${API_ENDPOINTS.USERS.SETTINGS}/reset`);
         } catch (err) {
           console.warn('Server reset failed, falling back to default settings:', err);
         }
@@ -271,7 +271,7 @@ const Settings: React.FC = () => {
         toggleDarkMode();
 
         // Save the default settings to the server
-        await axios.put(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.USERS.SETTINGS}`, {
+        await axios.put(API_ENDPOINTS.USERS.SETTINGS, {
           notifications: defaultSettings.notifications,
           privacy: defaultSettings.privacy,
           security: defaultSettings.security,
@@ -304,7 +304,7 @@ const Settings: React.FC = () => {
     if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
       try {
         setLoading(true);
-        await axios.delete(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.USERS.PROFILE}`);
+        await axios.delete(API_ENDPOINTS.USERS.PROFILE);
         addNotification({
           type: 'success',
           message: 'Account deleted successfully'
