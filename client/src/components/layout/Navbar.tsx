@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
-import { Bell, User, Settings, LogOut, Moon, Sun } from 'lucide-react';
+import { Bell, User, Settings, LogOut, Moon, Sun, Menu, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-const Navbar: React.FC = () => {
+interface NavbarProps {
+  onMenuClick: () => void;
+  isSidebarOpen: boolean;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ onMenuClick, isSidebarOpen }) => {
   const { user, logout } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -20,10 +25,28 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
       <div className="px-4 py-3 flex justify-between items-center">
-        <div className="flex-1">
+        {/* Mobile menu button - only visible on small screens */}
+        <div className="flex items-center md:hidden">
+          <button
+            onClick={onMenuClick}
+            className="p-2 rounded-md text-gray-500 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+            aria-label="Toggle menu"
+          >
+            {isSidebarOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
+        </div>
+        
+        <div className="flex-1 flex justify-center md:justify-start">
           {/* Search bar could go here */}
+          <div className="hidden md:block">
+            {/* Desktop search or other content */}
+          </div>
         </div>
         
         <div className="flex items-center space-x-4">

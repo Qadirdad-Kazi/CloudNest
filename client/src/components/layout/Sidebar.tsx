@@ -20,23 +20,31 @@ import { useFiles } from '../../context/FileContext';
 interface SidebarItemProps {
   icon: React.ReactNode;
   label: string;
-  path?: string; // Made optional since it's not being used
+  path?: string;
   active?: boolean;
   onClick?: () => void;
+  children?: React.ReactNode;
 }
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick }) => {
+const SidebarItem: React.FC<SidebarItemProps> = ({ 
+  icon, 
+  label, 
+  active, 
+  onClick,
+  children
+}) => {
   return (
     <div 
-      className={`flex items-center p-3 rounded-lg cursor-pointer transition-colors ${
+      className={`relative flex items-center p-3 rounded-lg cursor-pointer transition-colors ${
         active 
           ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' 
           : 'hover:bg-gray-100 dark:hover:bg-gray-800'
       }`}
       onClick={onClick}
     >
-      <div className="w-6 h-6 mr-3">{icon}</div>
-      <span className="font-medium">{label}</span>
+      <div className="w-6 h-6 flex-shrink-0">{icon}</div>
+      {label && <span className="font-medium ml-3 truncate">{label}</span>}
+      {children}
     </div>
   );
 };
@@ -44,9 +52,11 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick 
 interface SidebarProps {
   activeItem: string;
   onItemClick?: (item: string) => void;
+  isOpen: boolean;
+  isMobile: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick, isOpen, isMobile }) => {
   const { user } = useAuth();
   const { storageUsed, storageLimit } = useFiles();
   const navigate = useNavigate();
@@ -98,10 +108,23 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
   const handleUpload = () => {
     // TODO: Implement upload functionality
     console.log('Upload clicked');
+    if (isMobile) {
+      onItemClick?.('upload');
+    }
   };
   
+  // Calculate sidebar classes based on state
+  const sidebarClasses = [
+    'h-full flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800',
+    'transition-all duration-300 ease-in-out',
+    isMobile 
+      ? 'fixed inset-y-0 left-0 z-30 transform ' + (isOpen ? 'translate-x-0' : '-translate-x-full')
+      : 'relative',
+    isMobile ? 'w-64' : (isOpen ? 'w-64' : 'w-20')
+  ].join(' ');
+
   return (
-    <div className="w-64 h-full flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+    <div className={sidebarClasses}>
       <div className="p-4 flex items-center">
         <Cloud className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mr-2" />
         <h1 className="text-xl font-bold">CloudNest</h1>
@@ -117,104 +140,153 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => {
         </button>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-2">
-        <SidebarItem 
-          icon={<HardDrive className="w-5 h-5" />} 
-          label="My Drive" 
-          path="/dashboard"
-          active={activeItem === 'dashboard' || location.pathname === '/dashboard'}
-          onClick={() => {
-            navigate('/dashboard');
-            onItemClick && onItemClick('dashboard');
-          }}
-        />
-        <SidebarItem 
-          icon={<Star className="w-5 h-5" />} 
-          label="Starred" 
-          path="/starred"
-          active={activeItem === 'starred' || location.pathname === '/starred'}
-          onClick={() => {
-            navigate('/starred');
-            onItemClick && onItemClick('starred');
-          }}
-        />
-        <SidebarItem 
-          icon={<Share2 className="w-5 h-5" />} 
-          label="Shared" 
-          path="/shared"
-          active={activeItem === 'shared' || location.pathname === '/shared'}
-          onClick={() => {
-            navigate('/shared');
-            onItemClick && onItemClick('shared');
-          }}
-        />
-        <SidebarItem 
-          icon={<Clock className="w-5 h-5" />} 
-          label="Recent" 
-          path="/recent"
-          active={activeItem === 'recent' || location.pathname === '/recent'}
-          onClick={() => {
-            navigate('/recent');
-            onItemClick && onItemClick('recent');
-          }}
-        />
-        <SidebarItem 
-          icon={<Trash2 className="w-5 h-5" />} 
-          label="Trash" 
-          path="/trash"
-          active={activeItem === 'trash' || location.pathname === '/trash'}
-          onClick={() => {
-            navigate('/trash');
-            onItemClick && onItemClick('trash');
-          }}
-        />
-        
-        {isAdmin && (
+      <div className="flex-1 overflow-y-auto">
+        <div className="space-y-1 p-2">
+          <SidebarItem 
+            icon={<HardDrive className="w-5 h-5" />} 
+            label={!isMobile && isOpen ? "My Drive" : ""}
+            active={activeItem === 'dashboard' || location.pathname === '/dashboard'}
+            onClick={() => {
+              navigate('/dashboard');
+              onItemClick && onItemClick('dashboard');
+            }}
+          >
+            {(!isMobile && !isOpen) && (
+              <span className="absolute left-4 text-xs font-medium">My Drive</span>
+            )}
+          </SidebarItem>
+          <SidebarItem 
+            icon={<Star className="w-5 h-5" />} 
+            label={!isMobile && isOpen ? "Starred" : ""}
+            active={activeItem === 'starred' || location.pathname === '/starred'}
+            onClick={() => {
+              navigate('/starred');
+              onItemClick && onItemClick('starred');
+            }}
+          >
+            {(!isMobile && !isOpen) && (
+              <span className="absolute left-4 text-xs font-medium">Starred</span>
+            )}
+          </SidebarItem>
+          <SidebarItem 
+            icon={<Share2 className="w-5 h-5" />} 
+            label={!isMobile && isOpen ? "Shared" : ""}
+            active={activeItem === 'shared' || location.pathname === '/shared'}
+            onClick={() => {
+              navigate('/shared');
+              onItemClick && onItemClick('shared');
+            }}
+          >
+            {(!isMobile && !isOpen) && (
+              <span className="absolute left-4 text-xs font-medium">Shared</span>
+            )}
+          </SidebarItem>
+          <SidebarItem 
+            icon={<Clock className="w-5 h-5" />} 
+            label={!isMobile && isOpen ? "Recent" : ""}
+            active={activeItem === 'recent' || location.pathname === '/recent'}
+            onClick={() => {
+              navigate('/recent');
+              onItemClick && onItemClick('recent');
+            }}
+          >
+            {(!isMobile && !isOpen) && (
+              <span className="absolute left-4 text-xs font-medium">Recent</span>
+            )}
+          </SidebarItem>
+          <SidebarItem 
+            icon={<Trash2 className="w-5 h-5" />} 
+            label={!isMobile && isOpen ? "Trash" : ""}
+            active={activeItem === 'trash' || location.pathname === '/trash'}
+            onClick={() => {
+              navigate('/trash');
+              onItemClick && onItemClick('trash');
+            }}
+          >
+            {(!isMobile && !isOpen) && (
+              <span className="absolute left-4 text-xs font-medium">Trash</span>
+            )}
+          </SidebarItem>
+          
+          {isAdmin && (
+            <div className="mt-6 mb-2 px-3 text-xs font-semibold text-gray-500 uppercase">
+              Admin
+            </div>
+          )}
+          
+          {isAdmin && (
+            <>
+              <SidebarItem 
+                icon={<Users className="w-5 h-5" />} 
+                label={!isMobile && isOpen ? "Users" : ""}
+                active={location.pathname === '/admin/users'}
+                onClick={() => navigate('/admin/users')}
+              >
+                {(!isMobile && !isOpen) && (
+                  <span className="absolute left-4 text-xs font-medium">Users</span>
+                )}
+              </SidebarItem>
+              <SidebarItem 
+                icon={<BarChart className="w-5 h-5" />} 
+                label={!isMobile && isOpen ? "Analytics" : ""}
+                active={location.pathname === '/admin/analytics'}
+                onClick={() => navigate('/admin/analytics')}
+              >
+                {(!isMobile && !isOpen) && (
+                  <span className="absolute left-4 text-xs font-medium">Analytics</span>
+                )}
+              </SidebarItem>
+              <SidebarItem 
+                icon={<Settings className="w-5 h-5" />} 
+                label={!isMobile && isOpen ? "Settings" : ""}
+                active={location.pathname === '/admin/settings'}
+                onClick={() => navigate('/admin/settings')}
+              >
+                {(!isMobile && !isOpen) && (
+                  <span className="absolute left-4 text-xs font-medium">Settings</span>
+                )}
+              </SidebarItem>
+            </>
+          )}
+          
           <div className="mt-6 mb-2 px-3 text-xs font-semibold text-gray-500 uppercase">
-            Admin
+            Help
           </div>
-        )}
-        
-        {isAdmin && (
-          <>
-            <SidebarItem 
-              icon={<Users className="w-5 h-5" />} 
-              label="Users" 
-              path="/admin/users"
-              active={location.pathname === '/admin/users'}
-              onClick={() => navigate('/admin/users')}
-            />
-            <SidebarItem 
-              icon={<BarChart className="w-5 h-5" />} 
-              label="Analytics" 
-              path="/admin/analytics"
-              active={location.pathname === '/admin/analytics'}
-              onClick={() => navigate('/admin/analytics')}
-            />
-            <SidebarItem 
-              icon={<Settings className="w-5 h-5" />} 
-              label="Settings" 
-              path="/admin/settings"
-              active={location.pathname === '/admin/settings'}
-              onClick={() => navigate('/admin/settings')}
-            />
-          </>
-        )}
-        
-        <div className="mt-6 mb-2 px-3 text-xs font-semibold text-gray-500 uppercase">
-          Help
+          
+          <SidebarItem 
+            icon={<MessageSquare className="w-5 h-5" />} 
+            label={!isMobile && isOpen ? "Suggestions" : ""}
+            active={activeItem === 'suggestions' || location.pathname === '/suggestions'}
+            onClick={() => {
+              navigate('/suggestions');
+              onItemClick && onItemClick('suggestions');
+            }}
+          >
+            {(!isMobile && !isOpen) && (
+              <span className="absolute left-4 text-xs font-medium">Suggestions</span>
+            )}
+          </SidebarItem>
         </div>
-        
-        <SidebarItem 
-          icon={<MessageSquare className="w-5 h-5" />} 
-          label="Suggestions" 
-          path="/suggestions"
-          active={activeItem === 'suggestions' || location.pathname === '/suggestions'}
-          onClick={() => {
-            navigate('/suggestions');
-            onItemClick && onItemClick('suggestions');
-          }}
-        />
+      </div>
+      
+      <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+        {!isMobile && (
+          <button 
+            onClick={() => onItemClick?.('toggle')}
+            className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700"
+            aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            {isOpen ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            )}
+          </button>
+        )}
       </div>
       
       <div className="p-4 border-t border-gray-200 dark:border-gray-800">
