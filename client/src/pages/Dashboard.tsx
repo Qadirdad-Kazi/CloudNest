@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Upload, 
   FolderPlus, 
@@ -12,6 +12,7 @@ import FileCard from '../components/file/FileCard';
 import FolderCard from '../components/file/FolderCard';
 import ShareModal from '../components/modals/ShareModal';
 import PreviewModal from '../components/modals/PreviewModal';
+import LoadingOptimizer from '../components/ui/LoadingOptimizer';
 import { useAuth } from '../contexts/AuthContext';
 import { useFiles } from '../context/FileContext';
 import { useNotifications } from '../context/NotificationContext';
@@ -42,7 +43,8 @@ const Dashboard: React.FC = () => {
     starItem,
     shareItem,
     searchItems,
-    refreshFiles
+    refreshFiles,
+    prefetchData
   } = useFiles();
   
   const [activeSection, setActiveSection] = useState('my-drive');
@@ -60,6 +62,14 @@ const Dashboard: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Array<FileItem | Folder>>([]);
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   
+  // Memoize filtered data to prevent unnecessary re-renders
+  const filteredData = useMemo(() => {
+    if (isSearching && searchQuery.trim()) {
+      return searchResults;
+    }
+    return [...folders, ...files];
+  }, [isSearching, searchQuery, searchResults, folders, files]);
+
   // Reset state when switching sections
   useEffect(() => {
     clearSelection();
@@ -73,7 +83,14 @@ const Dashboard: React.FC = () => {
     if (activeSection === 'my-drive') {
       setCurrentPath('/');
     }
-  }, [activeSection, setCurrentPath]);
+  }, [activeSection, setCurrentPath, clearSelection]);
+  
+  // Prefetch data on component mount for better performance
+  useEffect(() => {
+    if (user) {
+      prefetchData();
+    }
+  }, [user, prefetchData]);
   
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -98,113 +115,116 @@ const Dashboard: React.FC = () => {
         message: `Created folder ${folderName}`,
         title: 'Success'
       });
-      refreshFiles();
     } catch (error) {
       console.error('Error creating folder:', error);
       addNotification({
         type: 'error',
-        message: 'Failed to create folder. Please try again.',
+        message: 'Failed to create folder',
         title: 'Error'
       });
     }
   };
-  
-  const handleRename = () => {
-    if (itemToRename && newName.trim()) {
-      renameItem(itemToRename, newName);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    try {
+      await uploadFile(file, (progress) => {
+        console.log(`Upload progress: ${progress}%`);
+      });
+      
+      addNotification({
+        type: 'success',
+        message: `Uploaded ${file.name}`,
+        title: 'Success'
+      });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      addNotification({
+        type: 'error',
+        message: 'Failed to upload file',
+        title: 'Error'
+      });
+    }
+    
+    // Reset the input
+    event.target.value = '';
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedItems.length === 0) return;
+
+    try {
+      await deleteItems(selectedItems);
+      clearSelection();
+      addNotification({
+        type: 'success',
+        message: `Deleted ${selectedItems.length} item(s)`,
+        title: 'Success'
+      });
+    } catch (error) {
+      console.error('Error deleting items:', error);
+      addNotification({
+        type: 'error',
+        message: 'Failed to delete items',
+        title: 'Error'
+      });
+    }
+  };
+
+  const handleRename = async () => {
+    if (!itemToRename || !newName.trim()) return;
+
+    try {
+      await renameItem(itemToRename, newName.trim());
       setShowRenameDialog(false);
       setItemToRename(null);
       setNewName('');
       addNotification({
         type: 'success',
-        message: `Renamed ${itemToRename?.name} to ${newName}`,
+        message: `Renamed to ${newName.trim()}`,
         title: 'Success'
       });
-      refreshFiles();
+    } catch (error) {
+      console.error('Error renaming item:', error);
+      addNotification({
+        type: 'error',
+        message: 'Failed to rename item',
+        title: 'Error'
+      });
     }
   };
-  
-  const handleShare = (isPublic: boolean, password?: string, expiry?: Date) => {
-    if (itemToShare) {
-      shareItem(itemToShare, isPublic, password, expiry)
-        .then((link: ShareLink) => {
-          setShareLink(link);
-          addNotification({
-            type: 'success',
-            message: `Shared ${itemToShare.name}`,
-            title: 'Success'
-          });
-        })
-        .catch((err: Error) => {
-          console.error('Error sharing item:', err);
-          addNotification({
-            type: 'error',
-            message: 'Failed to share item. Please try again.',
-            title: 'Error'
-          });
-        });
-    }
+
+  const handleShare = async (item: FileItem | Folder) => {
+    setItemToShare(item);
+    setShowShareModal(true);
   };
-  
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
 
-    for (const file of files) {
-      const uploadNotificationId = `upload-${Date.now()}-${file.name}`;
-      try {
-        // Initial upload notification
-        addNotification({
-          id: uploadNotificationId,
-          type: 'info',
-          message: `Uploading ${file.name}...`,
-          title: 'Upload in Progress',
-          progress: 0
-        });
+  const handleShareSubmit = async (isPublic: boolean, password?: string, expiry?: Date) => {
+    if (!itemToShare) return;
 
-        // Upload with progress tracking
-        await uploadFile(file, (progress: number) => {
-          addNotification({
-            id: uploadNotificationId,
-            type: 'info',
-            message: `Uploading ${file.name}...`,
-            title: 'Upload in Progress',
-            progress: progress
-          });
-        });
-
-        // Success notification
-        addNotification({
-          id: uploadNotificationId,
-          type: 'success',
-          message: `Successfully uploaded ${file.name}`,
-          title: 'Upload Complete',
-          progress: 100
-        });
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        addNotification({
-          id: uploadNotificationId,
-          type: 'error',
-          message: `Failed to upload ${file.name}. ${error instanceof Error ? error.message : 'Please try again.'}`,
-          title: 'Upload Error'
-        });
-      }
+    try {
+      const link = await shareItem(itemToShare, isPublic, password, expiry);
+      setShareLink(link);
+      addNotification({
+        type: 'success',
+        message: 'Share link created successfully',
+        title: 'Success'
+      });
+    } catch (error) {
+      console.error('Error creating share link:', error);
+      addNotification({
+        type: 'error',
+        message: 'Failed to create share link',
+        title: 'Error'
+      });
     }
-    
-    // Clear the input
-    event.target.value = '';
-    refreshFiles();
   };
 
   const handleFileClick = (file: FileItem) => {
-    // Handle file click - could open preview, download, etc.
-    console.log('File clicked:', file);
     setPreviewFile(file);
-  };
-
-  const handleFolderClick = (folder: Folder) => {
-    setCurrentPath(folder.path);
   };
 
   const handleBreadcrumbClick = (breadcrumb: BreadcrumbItem) => {
@@ -218,7 +238,9 @@ const Dashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Drive</h1>
-            <p className="text-gray-600 dark:text-gray-400">Manage your files and folders</p>
+            <p className="text-gray-600 dark:text-gray-400">
+              Manage your files and folders
+            </p>
           </div>
           
           <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-3">
@@ -229,7 +251,7 @@ const Dashboard: React.FC = () => {
                 placeholder="Search files and folders..."
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="w-full sm:w-64 pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -237,7 +259,7 @@ const Dashboard: React.FC = () => {
                 </svg>
               </div>
             </div>
-            
+
             {/* View mode toggle */}
             <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-1">
               <button
@@ -257,319 +279,192 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Breadcrumbs */}
-        {breadcrumbs.length > 1 && (
-          <nav className="flex" aria-label="Breadcrumb">
-            <ol className="flex items-center space-x-2">
-              {breadcrumbs.map((breadcrumb, index) => (
-                <li key={breadcrumb.path} className="flex items-center">
-                  {index > 0 && <ChevronRight className="w-4 h-4 text-gray-400 mx-2" />}
-                  <button
-                    onClick={() => handleBreadcrumbClick(breadcrumb)}
-                    className={`text-sm font-medium ${
-                      index === breadcrumbs.length - 1
-                        ? 'text-gray-900 dark:text-white'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                    }`}
-                  >
-                    {breadcrumb.name}
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </nav>
-        )}
+        <nav className="flex" aria-label="Breadcrumb">
+          <ol className="flex items-center space-x-2">
+            {breadcrumbs.map((breadcrumb, index) => (
+              <li key={breadcrumb.path} className="flex items-center">
+                {index > 0 && (
+                  <ChevronRight className="w-4 h-4 text-gray-400 mx-2" />
+                )}
+                <button
+                  onClick={() => handleBreadcrumbClick(breadcrumb)}
+                  className={`text-sm font-medium ${
+                    index === breadcrumbs.length - 1
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  {breadcrumb.name}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </nav>
 
-        {/* Actions */}
+        {/* Action buttons */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={() => setShowCreateFolder(true)}
-            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <FolderPlus className="w-5 h-5 mr-2" />
-            New Folder
-          </button>
-          
-          <label className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors">
-            <Upload className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" />
-            Upload Files
-            <input 
-              type="file" 
-              className="hidden" 
-              onChange={handleUpload}
-              multiple
+          <label className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer">
+            <Upload className="w-4 h-4 mr-2" />
+            Upload File
+            <input
+              type="file"
+              className="hidden"
+              onChange={handleFileUpload}
+              accept="*/*"
             />
           </label>
           
+          <button
+            onClick={() => setShowCreateFolder(true)}
+            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
+            <FolderPlus className="w-4 h-4 mr-2" />
+            Create Folder
+          </button>
+          
           {selectedItems.length > 0 && (
             <button
-              onClick={() => deleteItems(selectedItems)}
-              className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              onClick={handleDeleteSelected}
+              className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
             >
-              <Trash2 className="w-5 h-5 mr-2" />
+              <Trash2 className="w-4 h-4 mr-2" />
               Delete Selected ({selectedItems.length})
             </button>
           )}
         </div>
 
         {/* Content */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          </div>
-        ) : error ? (
-          <div className="text-center py-12">
-            <p className="text-red-600 dark:text-red-400">Error: {error}</p>
-          </div>
-        ) : (
-          <div>
-            {isSearching ? (
-              <div>
-                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                  Search Results for "{searchQuery}"
-                </h2>
-                {searchResults.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400">No results found.</p>
-                ) : viewMode === 'grid' ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {searchResults.map(item => 
-                      'type' in item ? (
-                        <FileCard 
-                          key={`file-${item.id}`}
-                          file={item as FileItem}
-                          selected={selectedItems.some((selected: FileItem | Folder) => selected.id === item.id)}
-                          onSelect={toggleSelect}
-                          onStar={starItem}
-                          onRename={(file) => {
-                            setItemToRename(file);
-                            setNewName(file.name);
-                            setShowRenameDialog(true);
-                          }}
-                          onShare={(file) => {
-                            setItemToShare(file);
-                            setShareLink(null);
-                            setShowShareModal(true);
-                          }}
-                          onDelete={(file) => deleteItems([file])}
-                          onDownload={() => {}}
-                          onClick={handleFileClick}
-                        />
-                      ) : (
-                        <FolderCard 
-                          key={`folder-${item.id}`}
-                          folder={item as Folder}
-                          selected={selectedItems.some((selected: FileItem | Folder) => selected.id === item.id)}
-                          onSelect={toggleSelect}
-                          onStar={starItem}
-                          onRename={(folder) => {
-                            setItemToRename(folder);
-                            setNewName(folder.name);
-                            setShowRenameDialog(true);
-                          }}
-                          onShare={(folder) => {
-                            setItemToShare(folder);
-                            setShareLink(null);
-                            setShowShareModal(true);
-                          }}
-                          onDelete={(folder) => deleteItems([folder])}
-                          onClick={handleFolderClick}
-                        />
-                      )
-                    )}
-                  </div>
+        <LoadingOptimizer isLoading={isLoading} type="files" error={error}>
+          {filteredData.length === 0 ? (
+            <div className="text-center py-12">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No files</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Get started by uploading a file or creating a folder.
+              </p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {filteredData.map(item => (
+                'type' in item ? (
+                  <FileCard 
+                    key={item.id}
+                    file={item}
+                    viewMode="grid"
+                    selected={selectedItems.some(selected => selected.id === item.id)}
+                    onSelect={() => toggleSelect(item)}
+                    onStar={() => starItem(item)}
+                    onRename={() => {
+                      setItemToRename(item);
+                      setNewName(item.name);
+                      setShowRenameDialog(true);
+                    }}
+                    onShare={() => handleShare(item)}
+                    onDelete={() => deleteItems([item])}
+                    onDownload={() => {}}
+                    onClick={() => handleFileClick(item)}
+                  />
                 ) : (
-                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-900">
-                        <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Name
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Location
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Modified
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Size
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        {/* Table rows would go here */}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div>
-                {/* Empty state */}
-                {folders.length === 0 && files.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FolderPlus className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">No items</h3>
-                    <p className="mt-1 text-gray-500 dark:text-gray-400">
-                      Get started by creating a new folder or uploading a file.
-                    </p>
-                    <div className="mt-6 flex justify-center space-x-4">
-                      <button 
-                        className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                        onClick={() => setShowCreateFolder(true)}
-                      >
-                        <FolderPlus className="w-5 h-5 mr-2" />
-                        <span>New Folder</span>
-                      </button>
-                      
-                      <label className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                        <Upload className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" />
-                        <span>Upload</span>
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          onChange={handleUpload}
-                          multiple
-                        />
-                      </label>
-                    </div>
-                  </div>
-                ) : viewMode === 'grid' ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {folders.map((folder: Folder) => (
-                      <FolderCard 
-                        key={`folder-${folder.id}`}
-                        folder={folder}
-                        selected={selectedItems.some((item: FileItem | Folder) => item.id === folder.id)}
-                        onSelect={toggleSelect}
-                        onStar={starItem}
-                        onRename={(folder) => {
-                          setItemToRename(folder);
-                          setNewName(folder.name);
-                          setShowRenameDialog(true);
-                        }}
-                        onShare={(folder) => {
-                          setItemToShare(folder);
-                          setShareLink(null);
-                          setShowShareModal(true);
-                        }}
-                        onDelete={(folder) => deleteItems([folder])}
-                        onClick={handleFolderClick}
-                      />
-                    ))}
-                    
-                    {files.map((file: FileItem) => (
+                  <FolderCard 
+                    key={item.id}
+                    folder={item}
+                    viewMode="grid"
+                    selected={selectedItems.some(selected => selected.id === item.id)}
+                    onSelect={() => toggleSelect(item)}
+                    onStar={() => starItem(item)}
+                    onRename={() => {
+                      setItemToRename(item);
+                      setNewName(item.name);
+                      setShowRenameDialog(true);
+                    }}
+                    onShare={() => handleShare(item)}
+                    onDelete={() => deleteItems([item])}
+                    onClick={() => setCurrentPath(item.path)}
+                  />
+                )
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-900">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Last Modified
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Size
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredData.map(item => (
+                    'type' in item ? (
                       <FileCard 
-                        key={`file-${file.id}`}
-                        file={file}
-                        selected={selectedItems.some((item: FileItem | Folder) => item.id === file.id)}
-                        onSelect={toggleSelect}
-                        onStar={starItem}
-                        onRename={(file) => {
-                          setItemToRename(file);
-                          setNewName(file.name);
+                        key={item.id}
+                        file={item}
+                        viewMode="list"
+                        selected={selectedItems.some(selected => selected.id === item.id)}
+                        onSelect={() => toggleSelect(item)}
+                        onStar={() => starItem(item)}
+                        onRename={() => {
+                          setItemToRename(item);
+                          setNewName(item.name);
                           setShowRenameDialog(true);
                         }}
-                        onShare={(file) => {
-                          setItemToShare(file);
-                          setShareLink(null);
-                          setShowShareModal(true);
-                        }}
-                        onDelete={(file) => deleteItems([file])}
+                        onShare={() => handleShare(item)}
+                        onDelete={() => deleteItems([item])}
                         onDownload={() => {}}
-                        onClick={handleFileClick}
+                        onClick={() => handleFileClick(item)}
                       />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-900">
-                        <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Name
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Last Modified
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Size
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        {folders.map((folder: Folder) => (
-                          <FolderCard 
-                            key={`folder-${folder.id}`}
-                            folder={folder}
-                            viewMode="list"
-                            selected={selectedItems.some((item: FileItem | Folder) => item.id === folder.id)}
-                            onSelect={toggleSelect}
-                            onStar={starItem}
-                            onRename={(folder) => {
-                              setItemToRename(folder);
-                              setNewName(folder.name);
-                              setShowRenameDialog(true);
-                            }}
-                            onShare={(folder) => {
-                              setItemToShare(folder);
-                              setShareLink(null);
-                              setShowShareModal(true);
-                            }}
-                            onDelete={(folder) => deleteItems([folder])}
-                            onClick={handleFolderClick}
-                          />
-                        ))}
-                        
-                        {files.map((file: FileItem) => (
-                          <FileCard 
-                            key={`file-${file.id}`}
-                            file={file}
-                            viewMode="list"
-                            selected={selectedItems.some((item: FileItem | Folder) => item.id === file.id)}
-                            onSelect={toggleSelect}
-                            onStar={starItem}
-                            onRename={(file) => {
-                              setItemToRename(file);
-                              setNewName(file.name);
-                              setShowRenameDialog(true);
-                            }}
-                            onShare={(file) => {
-                              setItemToShare(file);
-                              setShareLink(null);
-                              setShowShareModal(true);
-                            }}
-                            onDelete={(file) => deleteItems([file])}
-                            onDownload={() => {}}
-                            onClick={handleFileClick}
-                          />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                    ) : (
+                      <FolderCard 
+                        key={item.id}
+                        folder={item}
+                        viewMode="list"
+                        selected={selectedItems.some(selected => selected.id === item.id)}
+                        onSelect={() => toggleSelect(item)}
+                        onStar={() => starItem(item)}
+                        onRename={() => {
+                          setItemToRename(item);
+                          setNewName(item.name);
+                          setShowRenameDialog(true);
+                        }}
+                        onShare={() => handleShare(item)}
+                        onDelete={() => deleteItems([item])}
+                        onClick={() => setCurrentPath(item.path)}
+                      />
+                    )
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </LoadingOptimizer>
       </div>
-      
-      {/* Create Folder Modal */}
+
+      {/* Modals */}
       {showCreateFolder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Create New Folder</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Create New Folder</h3>
             <input
               type="text"
               placeholder="Folder name"
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-4"
               onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder(newFolderName)}
             />
-            <div className="mt-4 flex justify-end space-x-3">
+            <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowCreateFolder(false)}
                 className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
@@ -579,7 +474,7 @@ const Dashboard: React.FC = () => {
               <button
                 onClick={() => handleCreateFolder(newFolderName)}
                 disabled={!newFolderName.trim()}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
               >
                 Create
               </button>
@@ -588,19 +483,19 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Rename Modal */}
-      {showRenameDialog && (
+      {showRenameDialog && itemToRename && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Rename Item</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Rename Item</h3>
             <input
               type="text"
+              placeholder="New name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-4"
               onKeyPress={(e) => e.key === 'Enter' && handleRename()}
             />
-            <div className="mt-4 flex justify-end space-x-3">
+            <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowRenameDialog(false)}
                 className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
@@ -610,7 +505,7 @@ const Dashboard: React.FC = () => {
               <button
                 onClick={handleRename}
                 disabled={!newName.trim()}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
               >
                 Rename
               </button>
@@ -618,21 +513,14 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
-      
-      {/* Share Modal */}
-      <ShareModal 
+
+      <ShareModal
         isOpen={showShareModal}
-        onClose={() => {
-          setShowShareModal(false);
-          setItemToShare(null);
-          setShareLink(null);
-        }}
-        onShare={handleShare}
-        itemName={itemToShare?.name || ''}
-        shareLink={shareLink?.url}
+        onClose={() => setShowShareModal(false)}
+        onSubmit={handleShareSubmit}
+        shareLink={shareLink}
       />
 
-      {/* Preview Modal */}
       <PreviewModal
         isOpen={previewFile !== null}
         onClose={() => setPreviewFile(null)}

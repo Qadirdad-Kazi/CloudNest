@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Grid, List, Trash2, AlertCircle } from 'lucide-react';
-import Header from '../components/layout/Header';
-import Sidebar from '../components/layout/Sidebar';
+import MainLayout from '../components/layout/MainLayout';
 import FileCard from '../components/file/FileCard';
 import { useFiles } from '../context/FileContext';
 import { useNotifications } from '../context/NotificationContext';
@@ -12,7 +11,6 @@ const Trash: React.FC = () => {
   const { addNotification } = useNotifications();
   const [trashedFiles, setTrashedFiles] = useState<FileItem[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [darkMode, setDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -176,87 +174,116 @@ const Trash: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-      <Sidebar activeItem="trash" />
-      
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header 
-          onSearch={handleSearch} 
-          darkMode={darkMode} 
-          toggleDarkMode={() => setDarkMode(!darkMode)} 
-        />
-        
-        <main className="flex-1 overflow-y-auto p-4">
-          {/* Action buttons */}
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+    <MainLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center text-gray-900 dark:text-white">
+              <Trash2 className="w-6 h-6 mr-2 text-red-500" />
               Trash {trashedFiles.length > 0 ? `(${trashedFiles.length} items)` : ''}
             </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Deleted files and folders
+            </p>
+          </div>
+          
+          <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-3">
+            <button
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center justify-center"
+              onClick={handleEmptyTrash}
+              disabled={isLoading || trashedFiles.length === 0}
+            >
+              <Trash2 className="w-5 h-5 mr-2" />
+              Empty Trash ({trashedFiles.length} items)
+            </button>
             
-            <div className="flex space-x-4">
+            {/* View mode toggle */}
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-1">
               <button
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center"
-                onClick={handleEmptyTrash}
-                disabled={isLoading || trashedFiles.length === 0}
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded ${viewMode === 'grid' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-400'}`}
               >
-                <Trash2 className="w-5 h-5 mr-2" />
-                Empty Trash ({trashedFiles.length} items)
+                <Grid className="w-4 h-4" />
               </button>
-              
-              <div className="flex items-center space-x-2">
-                <button 
-                  className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-                  onClick={() => setViewMode('grid')}
-                >
-                  <Grid className="w-5 h-5" />
-                </button>
-                <button 
-                  className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-                  onClick={() => setViewMode('list')}
-                >
-                  <List className="w-5 h-5" />
-                </button>
-              </div>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded ${viewMode === 'list' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-400'}`}
+              >
+                <List className="w-4 h-4" />
+              </button>
             </div>
           </div>
+        </div>
 
-          {/* Loading state */}
-          {isLoading && (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+        {/* Error state */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 mr-2" />
+              <span>{error}</span>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Error state */}
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
-              <div className="flex items-center">
-                <AlertCircle className="w-5 h-5 mr-2" />
-                <span>{error}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!isLoading && !error && trashedFiles.length === 0 && (
-            <div className="text-center py-12">
-              <Trash2 className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">Trash is empty</h3>
-              <p className="mt-1 text-gray-500 dark:text-gray-400">
-                No items in trash
-              </p>
-            </div>
-          )}
-
-          {/* File grid/list */}
-          {!isLoading && !error && trashedFiles.length > 0 && (
-            viewMode === 'grid' ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {/* Content */}
+        {isLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+          </div>
+        ) : trashedFiles.length === 0 ? (
+          <div className="text-center py-12">
+            <Trash2 className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">Trash is empty</h3>
+            <p className="mt-1 text-gray-500 dark:text-gray-400">
+              No items in trash
+            </p>
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {trashedFiles.map(file => (
+              <FileCard 
+                key={file.id}
+                file={file}
+                viewMode="grid"
+                selected={selectedFiles.includes(file.id || (file as any)._id)}
+                onSelect={() => handleFileSelect(file.id || (file as any)._id)}
+                onStar={() => {}}
+                onRename={() => {}}
+                onShare={() => {}}
+                onDelete={() => handleDelete(file)}
+                onRestore={handleRestore}
+                onDownload={() => {}}
+                onClick={() => {}}
+                isInTrash={true}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Last Modified
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Size
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {trashedFiles.map(file => (
                   <FileCard 
                     key={file.id}
                     file={file}
-                    viewMode="grid"
+                    viewMode="list"
                     selected={selectedFiles.includes(file.id || (file as any)._id)}
                     onSelect={() => handleFileSelect(file.id || (file as any)._id)}
                     onStar={() => {}}
@@ -269,52 +296,12 @@ const Trash: React.FC = () => {
                     isInTrash={true}
                   />
                 ))}
-              </div>
-            ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-900">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Last Modified
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Size
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {trashedFiles.map(file => (
-                      <FileCard 
-                        key={file.id}
-                        file={file}
-                        viewMode="list"
-                        selected={selectedFiles.includes(file.id || (file as any)._id)}
-                        onSelect={() => handleFileSelect(file.id || (file as any)._id)}
-                        onStar={() => {}}
-                        onRename={() => {}}
-                        onShare={() => {}}
-                        onDelete={() => handleDelete(file)}
-                        onRestore={handleRestore}
-                        onDownload={() => {}}
-                        onClick={() => {}}
-                        isInTrash={true}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          )}
-        </main>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-    </div>
+    </MainLayout>
   );
 };
 

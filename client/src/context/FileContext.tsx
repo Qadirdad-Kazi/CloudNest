@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { FileItem, Folder, ShareLink, BreadcrumbItem } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from './NotificationContext';
@@ -47,6 +47,7 @@ interface FileContextType {
   moveFile: (fileId: string, newPath: string) => Promise<void>;
   moveFolder: (folderId: string, newPath: string) => Promise<void>;
   deleteFolder: (folderId: string, permanent: boolean) => Promise<void>;
+  prefetchData: () => Promise<void>;
 }
 
 // Create the context with default values
@@ -88,11 +89,22 @@ const FileContext = createContext<FileContextType>({
   renameFolder: async () => {},
   moveFile: async () => {},
   moveFolder: async () => {},
-  deleteFolder: async () => {}
+  deleteFolder: async () => {},
+  prefetchData: async () => {}
 });
 
 // Custom hook to use the file context
 export const useFiles = () => useContext(FileContext);
+
+// Cache interface for better performance
+interface DataCache {
+  [path: string]: {
+    files: FileItem[];
+    folders: Folder[];
+    timestamp: number;
+    ttl: number;
+  };
+}
 
 // Provider component
 export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -106,17 +118,21 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [currentPath, setCurrentPath] = useState('/');
   const [selectedItems, setSelectedItems] = useState<(FileItem | Folder)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  // State for upload progress
   const [uploadProgress, _setUploadProgress] = useState<number>(0);
-  
+  const [error, setError] = useState<string | null>(null);
+  const [storageUsed, setStorageUsed] = useState(0);
+  const storageLimit = 1024 * 1024 * 1024; // 1GB
+
+  // Performance optimizations
+  const [dataCache, setDataCache] = useState<DataCache>({});
+  const [isInitialized, setIsInitialized] = useState(false);
+  const loadingQueue = React.useRef<Set<string>>(new Set());
+  const cacheTTL = 30000; // 30 seconds cache TTL
+
   // Memoize setUploadProgress to prevent lint warnings
   const updateUploadProgress = useCallback((progress: number) => {
     _setUploadProgress(progress);
   }, []);
-  
-  const [error, setError] = useState<string | null>(null);
-  const [storageUsed, setStorageUsed] = useState(0);
-  const storageLimit = 1024 * 1024 * 1024; // 1GB
 
   // Calculate breadcrumbs based on current path
   const getBreadcrumbs = (path: string): BreadcrumbItem[] => {
@@ -132,7 +148,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return breadcrumbs;
   };
 
-  const breadcrumbs = getBreadcrumbs(currentPath);
+  const breadcrumbs = useMemo(() => getBreadcrumbs(currentPath), [currentPath]);
 
   // Function to update storage info
   const updateStorageInfo = async () => {
@@ -144,7 +160,32 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Function to refresh files and folders
+  // Cache management functions
+  const getCachedData = useCallback((path: string) => {
+    const cached = dataCache[path];
+    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+      return cached;
+    }
+    return null;
+  }, [dataCache]);
+
+  const setCachedData = useCallback((path: string, files: FileItem[], folders: Folder[]) => {
+    setDataCache(prev => ({
+      ...prev,
+      [path]: {
+        files,
+        folders,
+        timestamp: Date.now(),
+        ttl: cacheTTL
+      }
+    }));
+  }, [cacheTTL]);
+
+  const clearCache = useCallback(() => {
+    setDataCache({});
+  }, []);
+
+  // Function to refresh files and folders with caching
   const refreshFiles = async () => {
     try {
       setIsLoading(true);
@@ -157,6 +198,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       setFiles(newFiles);
       setFolders(newFolders);
+      
+      // Cache the results
+      setCachedData(currentPath, newFiles, newFolders);
     } catch (error) {
       console.error('Error refreshing files:', error);
       setError('Failed to refresh files');
@@ -165,14 +209,24 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Optimized starred files loading with improved persistence
+  // Optimized starred files loading with improved persistence and caching
   const loadStarredFiles = useCallback(async () => {
     // Prevent multiple simultaneous loading requests
-    if (isLoading) return;
+    if (isLoading || loadingQueue.current.has('starred')) return;
     
     try {
+      loadingQueue.current.add('starred');
       setIsLoading(true);
       setError(null);
+      
+      // Check cache first
+      const cached = getCachedData('/starred');
+      if (cached) {
+        setFiles(cached.files);
+        setFolders(cached.folders);
+        setCurrentPath('/starred');
+        return;
+      }
       
       // Get starred files - with caching for better performance
       const starredFiles = await fileService.getStarredFiles();
@@ -187,6 +241,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         setFiles(confirmedStarredFiles);
         setFolders([]); // No folders in starred view
+        
+        // Cache the results
+        setCachedData('/starred', confirmedStarredFiles, []);
         
         // Only set path if it's not already set to avoid unnecessary re-renders
         if (currentPath !== '/starred') {
@@ -205,17 +262,33 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     } finally {
       setIsLoading(false);
+      loadingQueue.current.delete('starred');
     }
-  }, [isLoading, currentPath, setFiles, setFolders, setCurrentPath, setError, setIsLoading, addNotification, fileService]);
+  }, [isLoading, currentPath, setFiles, setFolders, setCurrentPath, setError, setIsLoading, addNotification, fileService, getCachedData, setCachedData]);
 
   const loadTrashedFiles = useCallback(async () => {
+    if (isLoading || loadingQueue.current.has('trash')) return;
+    
     try {
+      loadingQueue.current.add('trash');
       setIsLoading(true);
       setError(null);
+      
+      // Check cache first
+      const cached = getCachedData('/trash');
+      if (cached) {
+        setFiles(cached.files);
+        setFolders(cached.folders);
+        setCurrentPath('/trash');
+        return;
+      }
       
       const response = await fileService.getTrashedFiles();
       setFiles(response);
       setFolders([]);
+      
+      // Cache the results
+      setCachedData('/trash', response, []);
       
       // Only update path if needed
       if (currentPath !== '/trash') {
@@ -231,8 +304,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     } finally {
       setIsLoading(false);
+      loadingQueue.current.delete('trash');
     }
-  }, [currentPath, setFiles, setFolders, setCurrentPath, setError, setIsLoading, addNotification, fileService]);
+  }, [currentPath, setFiles, setFolders, setCurrentPath, setError, setIsLoading, addNotification, fileService, isLoading, getCachedData, setCachedData]);
 
   // Calculate storage used
   useEffect(() => {
@@ -242,7 +316,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Keep track of last load times per path
   const pathLoadTimestamps = React.useRef<Record<string, number>>({});
   
-  // Load files and folders for the current path with intelligent throttling
+  // Load files and folders for the current path with intelligent throttling and caching
   const loadFiles = useCallback(async (path: string = currentPath) => {
     // Don't make API calls if not authenticated
     if (!currentUser) {
@@ -251,21 +325,32 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     
+    // Prevent duplicate requests
+    if (loadingQueue.current.has(path)) return;
+    
     // Implement path-specific throttling to prevent rapid repeated calls
     const now = Date.now();
     const lastLoadTime = pathLoadTimestamps.current[path];
     const loadThrottleMs = 1000; // 1 second minimum between loads for the same path
     
     // Only throttle if we're requesting the same path repeatedly
-    // But don't set up recursive timeouts that can cause infinite loops
     if (lastLoadTime && (now - lastLoadTime) < loadThrottleMs) {
       console.log(`Throttling file load for path ${path} - too many requests in short time`);
-      // Don't retry automatically - this prevents infinite loops
+      return;
+    }
+    
+    // Check cache first
+    const cached = getCachedData(path);
+    if (cached) {
+      setFiles(cached.files);
+      setFolders(cached.folders);
+      setCurrentPath(path);
       return;
     }
     
     // Update the last load timestamp for this specific path
     pathLoadTimestamps.current[path] = now;
+    loadingQueue.current.add(path);
 
     try {
       setIsLoading(true);
@@ -275,7 +360,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // Add timeout to prevent hanging requests
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), 15000); // 15 second timeout
+        setTimeout(() => reject(new Error('Request timeout')), 10000); // 10 second timeout
       });
       
       // Wrap API calls in Promise.race with timeout
@@ -299,51 +384,63 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setFiles(validFiles);
       setFolders(validFolders);
       
-      console.log('Updated state - Files:', validFiles.length, 'Folders:', validFolders.length);
+      // Cache the results
+      setCachedData(path, validFiles, validFolders);
+      
+      // Update current path
+      setCurrentPath(path);
+      
     } catch (error) {
-      console.error('Error loading files and folders:', error);
-      // Don't set error state for network errors to prevent UI issues
-      if (error instanceof Error && error.message.includes('Network Error')) {
-        console.warn('Network error detected, likely CORS issue');
-      } else {
-        setError('Failed to load files and folders');
-        // Show notification only for non-network errors
-        addNotification({
-          type: 'error',
-          title: 'Error Loading Files',
-          message: 'Could not load your files. Please try again later.'
-        });
-      }
-      // Set empty arrays on error to prevent stale data
-      setFiles([]);
-      setFolders([]);
+      console.error('Error loading files:', error);
+      setError('Failed to load files');
     } finally {
       setIsLoading(false);
+      loadingQueue.current.delete(path);
     }
-  }, [currentPath, currentUser, setFiles, setFolders, setError, setIsLoading, addNotification, fileService, folderService]);
+  }, [currentUser, currentPath, setFiles, setFolders, setCurrentPath, setError, setIsLoading, getCachedData, setCachedData, isLoading]);
 
-  // Load files and folders when path changes
+  // Prefetch data for better performance
+  const prefetchData = useCallback(async () => {
+    if (!currentUser || isInitialized) return;
+    
+    try {
+      console.log('Prefetching data for better performance...');
+      
+      // Prefetch common paths in parallel
+      const commonPaths = ['/', '/starred', '/trash'];
+      const prefetchPromises = commonPaths.map(async (path) => {
+        try {
+          const [files, folders] = await Promise.all([
+            fileService.getFiles(path),
+            folderService.getFolders(path)
+          ]);
+          setCachedData(path, files, folders);
+        } catch (error) {
+          console.error(`Error prefetching ${path}:`, error);
+        }
+      });
+      
+      await Promise.allSettled(prefetchPromises);
+      setIsInitialized(true);
+      console.log('Data prefetching completed');
+    } catch (error) {
+      console.error('Error during data prefetching:', error);
+    }
+  }, [currentUser, isInitialized, setCachedData]);
+
+  // Load files when path changes
   useEffect(() => {
-    // Only load files if user is authenticated
     if (currentUser) {
-      // Handle special paths
-      if (currentPath === '/starred') {
-        // Load starred files directly
-        loadStarredFiles();
-      } else if (currentPath === '/trash') {
-        // Load trash files
-        loadTrashedFiles();
-      } else {
-        // Load regular files and folders
-        loadFiles();
-      }
-    } else {
-      // Clear files and folders when not authenticated
-      setFiles([]);
-      setFolders([]);
+      loadFiles(currentPath);
     }
-  }, [currentPath, currentUser, loadStarredFiles, loadTrashedFiles, loadFiles]);
+  }, [currentPath, currentUser, loadFiles]);
 
+  // Initialize data when user logs in
+  useEffect(() => {
+    if (currentUser && !isInitialized) {
+      prefetchData();
+    }
+  }, [currentUser, isInitialized, prefetchData]);
 
   // Create a new folder
   const createFolder = async (name: string): Promise<void> => {
@@ -353,7 +450,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       console.log('Creating folder:', { name, path: currentPath });
       
-      const newFolder = await folderService.createFolder({ name, path: currentPath });
+      const newFolder = await folderService.createFolder({ name, path: currentPath, owner: currentUser?.id || '' });
       
       console.log('New folder created:', newFolder);
       
@@ -427,9 +524,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       for (const item of items) {
         if ('type' in item) {
-          await fileService.deleteFile(item.id);
+          await fileService.deleteFile(item.id, false);
         } else {
-          await folderService.deleteFolder(item.id);
+          await folderService.deleteFolder(item.id, false);
         }
       }
       await refreshFiles();
@@ -561,13 +658,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(true);
       setError(null);
       
-      const shareLink = await shareLinkService.createShareLink({
-        itemId: item.id,
-        itemType: 'file' in item ? 'file' : 'folder', // Determine if it's a file or folder
-        isPublic,
-        password,
-        expiresAt: expiry, // Pass the Date object directly
-      });
+      const shareLink = await shareLinkService.createShareLink(item.id, isPublic, password, expiry);
       
       setShareLinks(prev => [...prev, shareLink]);
       
@@ -978,49 +1069,245 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Return the provider with all values and functions
+  const contextValue = useMemo(() => ({
+    files,
+    folders,
+    shareLinks,
+    currentPath,
+    breadcrumbs,
+    selectedItems,
+    isLoading,
+    uploadProgress,
+    error,
+    storageUsed,
+    storageLimit,
+    setCurrentPath,
+    createFolder: async (name: string) => {
+      try {
+        await folderService.createFolder({ name, path: currentPath, owner: currentUser?.id || '' });
+        await refreshFiles();
+        clearCache(); // Clear cache after folder creation
+      } catch (error) {
+        console.error('Error creating folder:', error);
+        throw error;
+      }
+    },
+    uploadFile: async (file: File, onProgress?: (progress: number) => void) => {
+      try {
+        const result = await fileService.uploadFile(file, currentPath, onProgress);
+        await refreshFiles();
+        clearCache(); // Clear cache after upload
+        return result;
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        throw error;
+      }
+    },
+    deleteItems: async (items: (FileItem | Folder)[]) => {
+      try {
+        for (const item of items) {
+          if ('type' in item) {
+            await fileService.deleteFile(item.id, false);
+          } else {
+            await folderService.deleteFolder(item.id, false);
+          }
+        }
+        await refreshFiles();
+        clearCache(); // Clear cache after deletion
+      } catch (error) {
+        console.error('Error deleting items:', error);
+        throw error;
+      }
+    },
+    renameItem: async (item: FileItem | Folder, newName: string) => {
+      try {
+        if ('type' in item) {
+          await fileService.renameFile(item.id, newName);
+        } else {
+          await folderService.renameFolder(item.id, newName);
+        }
+        await refreshFiles();
+        clearCache(); // Clear cache after rename
+      } catch (error) {
+        console.error('Error renaming item:', error);
+        throw error;
+      }
+    },
+    toggleSelect: (item: FileItem | Folder) => {
+      setSelectedItems(prev => {
+        const isSelected = prev.some(selected => selected.id === item.id);
+        if (isSelected) {
+          return prev.filter(selected => selected.id !== item.id);
+        } else {
+          return [...prev, item];
+        }
+      });
+    },
+    clearSelection: () => setSelectedItems([]),
+    selectAll: () => setSelectedItems([...files, ...folders]),
+    starItem: async (item: FileItem | Folder) => {
+      try {
+        if ('type' in item) {
+          await fileService.starFile(item.id);
+        } else {
+          await folderService.starFolder(item.id);
+        }
+        await refreshFiles();
+        clearCache(); // Clear cache after starring
+      } catch (error) {
+        console.error('Error starring item:', error);
+        throw error;
+      }
+    },
+    shareItem: async (item: FileItem | Folder, isPublic: boolean, password?: string, expiry?: Date) => {
+      try {
+        const shareLink = await shareLinkService.createShareLink(item.id, isPublic, password, expiry);
+        return shareLink;
+      } catch (error) {
+        console.error('Error sharing item:', error);
+        throw error;
+      }
+    },
+    searchItems: async (query: string) => {
+      try {
+        const results = await fileService.searchFiles(query);
+        return results;
+      } catch (error) {
+        console.error('Error searching items:', error);
+        throw error;
+      }
+    },
+    deleteFile: async (fileId: string, permanent: boolean) => {
+      try {
+        await fileService.deleteFile(fileId, permanent);
+        await refreshFiles();
+        clearCache(); // Clear cache after deletion
+      } catch (error) {
+        console.error('Error deleting file:', error);
+        throw error;
+      }
+    },
+    starFile: async (fileId: string) => {
+      try {
+        await fileService.starFile(fileId);
+        await refreshFiles();
+        clearCache(); // Clear cache after starring
+      } catch (error) {
+        console.error('Error starring file:', error);
+        throw error;
+      }
+    },
+    moveToTrash: async (fileId: string) => {
+      try {
+        await fileService.moveToTrash(fileId);
+        await refreshFiles();
+        clearCache(); // Clear cache after moving to trash
+      } catch (error) {
+        console.error('Error moving file to trash:', error);
+        throw error;
+      }
+    },
+    restoreFromTrash: async (fileId: string) => {
+      try {
+        await fileService.restoreFromTrash(fileId);
+        await refreshFiles();
+        clearCache(); // Clear cache after restoration
+      } catch (error) {
+        console.error('Error restoring file:', error);
+        throw error;
+      }
+    },
+    emptyTrash: async () => {
+      try {
+        await fileService.emptyTrash();
+        await refreshFiles();
+        clearCache(); // Clear cache after emptying trash
+      } catch (error) {
+        console.error('Error emptying trash:', error);
+        throw error;
+      }
+    },
+    getTrashFiles: async () => {
+      try {
+        return await fileService.getTrashedFiles();
+      } catch (error) {
+        console.error('Error getting trash files:', error);
+        throw error;
+      }
+    },
+    refreshFiles,
+    loadFiles,
+    loadTrashedFiles,
+    loadStarredFiles,
+    toggleStar: async (fileId: string) => {
+      try {
+        await fileService.starFile(fileId);
+        await refreshFiles();
+        clearCache(); // Clear cache after toggling star
+      } catch (error) {
+        console.error('Error toggling star:', error);
+        throw error;
+      }
+    },
+    renameFile: async (fileId: string, newName: string) => {
+      try {
+        await fileService.renameFile(fileId, newName);
+        await refreshFiles();
+        clearCache(); // Clear cache after rename
+      } catch (error) {
+        console.error('Error renaming file:', error);
+        throw error;
+      }
+    },
+    renameFolder: async (folderId: string, newName: string) => {
+      try {
+        await folderService.renameFolder(folderId, newName);
+        await refreshFiles();
+        clearCache(); // Clear cache after rename
+      } catch (error) {
+        console.error('Error renaming folder:', error);
+        throw error;
+      }
+    },
+    moveFile: async (fileId: string, newPath: string) => {
+      try {
+        await fileService.moveFile(fileId, newPath);
+        await refreshFiles();
+        clearCache(); // Clear cache after move
+      } catch (error) {
+        console.error('Error moving file:', error);
+        throw error;
+      }
+    },
+    moveFolder: async (folderId: string, newPath: string) => {
+      try {
+        await folderService.moveFolder(folderId, newPath);
+        await refreshFiles();
+        clearCache(); // Clear cache after move
+      } catch (error) {
+        console.error('Error moving folder:', error);
+        throw error;
+      }
+    },
+    deleteFolder: async (folderId: string, permanent: boolean) => {
+      try {
+        await folderService.deleteFolder(folderId, permanent);
+        await refreshFiles();
+        clearCache(); // Clear cache after deletion
+      } catch (error) {
+        console.error('Error deleting folder:', error);
+        throw error;
+      }
+    },
+    prefetchData
+  }), [
+    files, folders, shareLinks, currentPath, breadcrumbs, selectedItems, isLoading, 
+    uploadProgress, error, storageUsed, storageLimit, currentUser, refreshFiles, 
+    loadFiles, loadTrashedFiles, loadStarredFiles, clearCache, prefetchData
+  ]);
+
   return (
-    <FileContext.Provider
-      value={{
-        files,
-        folders,
-        shareLinks,
-        currentPath,
-        breadcrumbs,
-        selectedItems,
-        isLoading,
-        uploadProgress,
-        error,
-        storageUsed,
-        storageLimit,
-        setCurrentPath,
-        createFolder,
-        uploadFile,
-        deleteItems,
-        renameItem,
-        toggleSelect,
-        clearSelection,
-        selectAll,
-        starItem,
-        shareItem,
-        searchItems,
-        deleteFile,
-        starFile,
-        moveToTrash,
-        restoreFromTrash,
-        emptyTrash,
-        getTrashFiles,
-        refreshFiles,
-        loadFiles,
-        loadTrashedFiles,
-        loadStarredFiles,
-        toggleStar,
-        renameFile,
-        renameFolder,
-        moveFile,
-        moveFolder,
-        deleteFolder
-      }}
-    >
+    <FileContext.Provider value={contextValue}>
       {children}
     </FileContext.Provider>
   );
