@@ -65,7 +65,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const verifyAuth = async () => {
       try {
-        console.log('Verifying authentication...');
         // Only verify if we're not on the login or register page
         const currentPath = window.location.pathname;
         if (currentPath === '/login' || currentPath === '/register') {
@@ -77,8 +76,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('Auth verification response:', response.data);
         setUser(response.data);
         setIsAuthenticated(true);
-      } catch (error) {
-        console.error('Auth verification failed:', error);
+      } catch (error: any) {
+        // Don't log errors for unauthenticated users (401/404) - this is expected
+        if (error?.response?.status !== 401 && error?.response?.status !== 404) {
+          console.error('Auth verification failed:', error);
+        }
         setUser(null);
         setIsAuthenticated(false);
       } finally {
