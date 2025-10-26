@@ -1,7 +1,23 @@
 import axios from 'axios';
 
+// Determine the base URL based on environment
+const getBaseURL = () => {
+  // If VITE_API_URL is explicitly set, use it
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // In production, use relative path to leverage Netlify proxy
+  if (import.meta.env.PROD) {
+    return '/api';
+  }
+  
+  // In development, use localhost
+  return 'http://localhost:5001/api';
+};
+
 const instance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
+  baseURL: getBaseURL(),
   timeout: 30000,
   withCredentials: true,
   headers: {
