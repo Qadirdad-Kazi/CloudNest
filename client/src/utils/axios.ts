@@ -4,8 +4,16 @@ import axios from 'axios';
 const getBaseURL = () => {
   // Priority 1: If VITE_API_URL is explicitly set, use it (allows easy hosting changes)
   if (import.meta.env.VITE_API_URL) {
-    console.log('[Axios] Using VITE_API_URL:', import.meta.env.VITE_API_URL);
-    return import.meta.env.VITE_API_URL;
+    let apiUrl = import.meta.env.VITE_API_URL;
+    
+    // Ensure the URL has a protocol
+    if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+      apiUrl = `https://${apiUrl}`;
+      console.log('[Axios] Added https:// protocol to VITE_API_URL');
+    }
+    
+    console.log('[Axios] Using VITE_API_URL:', apiUrl);
+    return apiUrl;
   }
   
   // Priority 2: In development, use localhost
