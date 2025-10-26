@@ -38,13 +38,15 @@ router.post('/login', async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    // Return user data without the token (token is in the cookie)
+    // Return user data WITH token (for cross-domain reliability)
+    // Frontend will store in localStorage as backup
     res.json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      settings: user.settings
+      settings: user.settings,
+      token // Send token in response body too
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -88,13 +90,15 @@ router.post('/register', async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    // Return user data without the token (token is in the cookie)
+    // Return user data WITH token (for cross-domain reliability)
+    // Frontend will store in localStorage as backup
     res.status(201).json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      settings: user.settings
+      settings: user.settings,
+      token // Send token in response body too
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -132,8 +136,16 @@ router.get('/debug', (req, res) => {
 // Get current user route (requires authentication)
 router.get('/me', async (req, res) => {
   try {
-    // Get token from cookie
-    const token = req.cookies.token;
+    // Get token from cookie OR Authorization header (for cross-domain support)
+    let token = req.cookies.token;
+    
+    // If no cookie, check Authorization header
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
     
     if (!token) {
       return res.status(401).json({ message: 'Not authenticated' });

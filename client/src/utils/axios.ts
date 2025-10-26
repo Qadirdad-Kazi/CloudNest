@@ -54,28 +54,53 @@ instance.interceptors.request.use(
   }
 );
 
-// Add response interceptor
+// Add response interceptor for auth errors and caching
 instance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Successful response - cache it if it's a GET request
+    if (response.config.method === 'get' && response.config.url) {
+      const cacheKey = `api_cache_${response.config.url}`;
+      const cacheData = {
+        data: response.data,
+        timestamp: Date.now()
+      };
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      } catch (e) {
+        // Ignore cache storage errors (quota exceeded)
+        console.warn('[Cache] Failed to store cache:', e);
+      }
+    }
+    return response;
+  },
   async (error) => {
-    // Handle 401 errors with throttling to prevent infinite loops
+    // Handle 401 errors (unauthorized) with throttling
     if (error.response?.status === 401) {
       const lastRedirectTime = localStorage.getItem('lastAuthRedirect');
       const currentTime = Date.now();
       
       // Only redirect if we haven't redirected in the last 10 seconds
       if (!lastRedirectTime || (currentTime - parseInt(lastRedirectTime)) > 10000) {
+        console.log('[Axios] 401 Unauthorized - Clearing auth and redirecting to login');
         localStorage.setItem('lastAuthRedirect', currentTime.toString());
+        
+        // Clear all auth data
         localStorage.removeItem('token');
-        window.location.href = '/login';
+        localStorage.removeItem('user');
+        localStorage.removeItem('userCacheTime');
+        
+        // Only redirect if not already on login page
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       } else {
-        console.warn('Prevented redirect loop: Too many 401 redirects in a short time');
+        console.warn('[Axios] Prevented redirect loop: Too many 401 redirects in a short time');
       }
     }
     
     // Handle network errors (likely CORS issues)
     if (error.message && (error.message.includes('Network Error') || !error.response)) {
-      console.error('Network error (possibly CORS):', error.message);
+      console.error('[Axios] Network error (possibly CORS):', error.message);
       // Don't redirect on network errors, just log them
     }
     

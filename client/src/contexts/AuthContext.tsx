@@ -65,16 +65,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const verifyAuth = async () => {
       try {
-        // Only verify if we're not on the login or register page
+        // Check if we have a token in localStorage
+        const token = localStorage.getItem('token');
+        
+        // Only verify if we're not on public pages
         const currentPath = window.location.pathname;
-        if (currentPath === '/login' || currentPath === '/register' || currentPath === '/') {
+        const publicPaths = ['/login', '/register', '/', '/about', '/contact'];
+        
+        if (publicPaths.includes(currentPath)) {
           setIsLoading(false);
           return;
         }
         
-        console.log('[Auth] Verifying authentication for path:', currentPath);
+        // If no token, clear auth state
+        if (!token) {
+          console.log('[Auth] No token found, user not authenticated');
+          setUser(null);
+          setIsAuthenticated(false);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Check cache first (avoid unnecessary API calls)
+        const cachedUser = localStorage.getItem('user');
+        const cacheTimestamp = localStorage.getItem('userCacheTime');
+        const now = Date.now();
+        
+        // Use cache if less than 5 minutes old
+        if (cachedUser && cacheTimestamp && (now - parseInt(cacheTimestamp)) < 5 * 60 * 1000) {
+          console.log('[Auth] Using cached user data');
+          const userData = JSON.parse(cachedUser);
+          setUser(userData);
+          setIsAuthenticated(true);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Verify token with backend
+        console.log('[Auth] Verifying token with backend for path:', currentPath);
         const response = await axios.get(API_ENDPOINTS.AUTH.VERIFY);
         console.log('[Auth] Verification successful, user:', response.data.name);
+        
+        // Cache user data
+        localStorage.setItem('user', JSON.stringify(response.data));
+        localStorage.setItem('userCacheTime', now.toString());
+        
         setUser(response.data);
         setIsAuthenticated(true);
       } catch (error: any) {
@@ -82,6 +117,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error?.response?.status !== 401 && error?.response?.status !== 404) {
           console.error('[Auth] Verification failed with unexpected error:', error);
         }
+        
+        // Clear all auth data on failure
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('userCacheTime');
         setUser(null);
         setIsAuthenticated(false);
       } finally {
@@ -97,12 +137,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     try {
       const response = await axios.post(API_ENDPOINTS.AUTH.LOGIN, { email, password });
-      console.log('Login successful, user data:', response.data);
-      console.log('Cookies:', document.cookie);
-      setUser(response.data);
+      console.log('[Auth] Login successful, user data:', response.data);
+      
+      // Store token in localStorage (permanent solution for cross-domain)
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        console.log('[Auth] ✅ Token stored in localStorage');
+      } else {
+        console.warn('[Auth] ⚠️  No token received from backend');
+      }
+      
+      // Remove token from user object before storing
+      const { token, ...userData } = response.data;
+      
+      // Cache user data with timestamp
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('userCacheTime', Date.now().toString());
+      console.log('[Auth] ✅ User data cached');
+      
+      setUser(userData);
       setIsAuthenticated(true);
-      return response.data;
+      return userData;
     } catch (error: any) {
+      console.error('[Auth] ❌ Login failed:', error);
       setError(error.response?.data?.message || 'An error occurred during login');
       throw error;
     } finally {
@@ -115,11 +172,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     try {
       const response = await axios.post(API_ENDPOINTS.AUTH.REGISTER, { name, email, password });
-      console.log('Registration successful, user data:', response.data);
-      console.log('Cookies:', document.cookie);
-      setUser(response.data);
+      console.log('[Auth] Registration successful, user data:', response.data);
+      
+      // Store token in localStorage (permanent solution for cross-domain)
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        console.log('[Auth] ✅ Token stored in localStorage');
+      } else {
+        console.warn('[Auth] ⚠️  No token received from backend');
+      }
+      
+      // Remove token from user object before storing
+      const { token, ...userData } = response.data;
+      
+      // Cache user data with timestamp
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('userCacheTime', Date.now().toString());
+      console.log('[Auth] ✅ User data cached');
+      
+      setUser(userData);
       setIsAuthenticated(true);
+      return userData;
     } catch (error: any) {
+      console.error('[Auth] ❌ Registration failed:', error);
       setError(error.response?.data?.message || 'An error occurred during registration');
       throw error;
     } finally {
@@ -131,14 +206,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await axios.post(API_ENDPOINTS.AUTH.LOGOUT);
     } catch (error) {
-      console.error('Error during logout:', error);
+      console.error('[Auth] Error during logout:', error);
     } finally {
+      // Clear all auth data from localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userCacheTime');
+      console.log('[Auth] ✅ All auth data cleared from localStorage');
+      
       setUser(null);
+      setIsAuthenticated(false);
     }
   };
 
   const updateUser = (userData: Partial<User>) => {
-    setUser(prev => prev ? { ...prev, ...userData } : null);
+    setUser(prev => {
+      if (!prev) return null;
+      
+      const updatedUser = { ...prev, ...userData };
+      
+      // Update cache
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      localStorage.setItem('userCacheTime', Date.now().toString());
+      console.log('[Auth] ✅ User cache updated');
+      
+      return updatedUser;
+    });
   };
 
   // Function to calculate storage based on local files
