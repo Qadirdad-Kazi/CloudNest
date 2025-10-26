@@ -4,20 +4,26 @@ import axios from 'axios';
 const getBaseURL = () => {
   // If VITE_API_URL is explicitly set, use it
   if (import.meta.env.VITE_API_URL) {
+    console.log('[Axios] Using VITE_API_URL:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
   
   // In production, use relative path to leverage Netlify proxy
   if (import.meta.env.PROD) {
+    console.log('[Axios] Production mode detected, using relative path: /api');
     return '/api';
   }
   
   // In development, use localhost
+  console.log('[Axios] Development mode detected, using: http://localhost:5001/api');
   return 'http://localhost:5001/api';
 };
 
+const baseURL = getBaseURL();
+console.log('[Axios] Final baseURL:', baseURL);
+
 const instance = axios.create({
-  baseURL: getBaseURL(),
+  baseURL,
   timeout: 30000,
   withCredentials: true,
   headers: {
