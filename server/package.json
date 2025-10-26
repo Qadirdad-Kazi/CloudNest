@@ -9,7 +9,8 @@
     "dev": "nodemon index.js",
     "build": "npm install",
     "lint": "eslint .",
-    "test": "jest"
+    "test": "jest",
+    "clear-db": "node scripts/clearDatabase.js"
   },
   "engines": {
     "node": ">=18.0.0"

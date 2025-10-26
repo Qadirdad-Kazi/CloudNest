@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  VITE_API_URL = "https://cloud-nest-pi.vercel.app/api"
 
 # Proxy API requests to Vercel backend (must be first!)
 [[redirects]]
