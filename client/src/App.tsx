@@ -33,14 +33,18 @@ const LoadingSpinner: React.FC = () => (
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
   
+  console.log('[ProtectedRoute] isLoading:', isLoading, 'user:', user?.name || 'null');
+  
   if (isLoading) {
     return <LoadingSpinner />;
   }
 
   if (!user) {
+    console.log('[ProtectedRoute] No user found, redirecting to /login');
     return <Navigate to="/login" replace />;
   }
   
+  console.log('[ProtectedRoute] User authenticated, rendering protected content');
   return <>{children}</>;
 };
 

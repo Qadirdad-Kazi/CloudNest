@@ -67,19 +67,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         // Only verify if we're not on the login or register page
         const currentPath = window.location.pathname;
-        if (currentPath === '/login' || currentPath === '/register') {
+        if (currentPath === '/login' || currentPath === '/register' || currentPath === '/') {
           setIsLoading(false);
           return;
         }
         
+        console.log('[Auth] Verifying authentication for path:', currentPath);
         const response = await axios.get(API_ENDPOINTS.AUTH.VERIFY);
-        console.log('Auth verification response:', response.data);
+        console.log('[Auth] Verification successful, user:', response.data.name);
         setUser(response.data);
         setIsAuthenticated(true);
       } catch (error: any) {
         // Don't log errors for unauthenticated users (401/404) - this is expected
         if (error?.response?.status !== 401 && error?.response?.status !== 404) {
-          console.error('Auth verification failed:', error);
+          console.error('[Auth] Verification failed with unexpected error:', error);
         }
         setUser(null);
         setIsAuthenticated(false);
@@ -96,7 +97,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     try {
       const response = await axios.post(API_ENDPOINTS.AUTH.LOGIN, { email, password });
+      console.log('Login successful, user data:', response.data);
+      console.log('Cookies:', document.cookie);
       setUser(response.data);
+      setIsAuthenticated(true);
       return response.data;
     } catch (error: any) {
       setError(error.response?.data?.message || 'An error occurred during login');
@@ -111,7 +115,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     try {
       const response = await axios.post(API_ENDPOINTS.AUTH.REGISTER, { name, email, password });
+      console.log('Registration successful, user data:', response.data);
+      console.log('Cookies:', document.cookie);
       setUser(response.data);
+      setIsAuthenticated(true);
     } catch (error: any) {
       setError(error.response?.data?.message || 'An error occurred during registration');
       throw error;
