@@ -5,14 +5,15 @@
 [build.environment]
   NODE_VERSION = "18"
 
-# Proxy API requests to Vercel (same-origin for cookies)
+# Proxy API requests to Vercel backend (must be first!)
 [[redirects]]
   from = "/api/*"
   to = "https://cloud-nest-pi.vercel.app/api/:splat"
   status = 200
   force = true
+  headers = {X-From = "Netlify"}
 
-# Handle SPA routing
+# Handle SPA routing (must be last!)
 [[redirects]]
   from = "/*"
   to = "/index.html"

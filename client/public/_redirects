@@ -1,0 +1,6 @@
+# API proxy to Vercel backend
+/api/*  https://cloud-nest-pi.vercel.app/api/:splat  200!
+
+# SPA fallback
+/*  /index.html  200
+
