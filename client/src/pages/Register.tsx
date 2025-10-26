@@ -80,10 +80,19 @@ const Register: React.FC = () => {
 
     setIsLoading(true);
     try {
+      console.log('[Register] Submitting registration with:', {
+        name: formData.name,
+        email: formData.email,
+        passwordLength: formData.password.length
+      });
       await register(formData.name, formData.email, formData.password);
+      console.log('[Register] Registration successful, navigating to dashboard');
       navigate('/dashboard');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+    } catch (err: any) {
+      console.error('[Register] Registration failed:', err);
+      console.error('[Register] Error response:', err.response?.data);
+      const errorMsg = err.response?.data?.message || err.message || 'Registration failed';
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
     }

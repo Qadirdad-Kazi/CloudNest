@@ -49,7 +49,9 @@ const Login: React.FC = () => {
     setError(null);
     
     try {
+      console.log('[Login] Attempting login for:', email);
       const userData = await login(email, password);
+      console.log('[Login] Login successful, user:', userData?.name);
       if (userData) {
         toast.success('Login successful! Redirecting...', {
           position: 'top-center',
@@ -60,8 +62,10 @@ const Login: React.FC = () => {
           navigate('/dashboard', { replace: true });
         }, 1500);
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.';
+    } catch (error: any) {
+      console.error('[Login] Login failed:', error);
+      console.error('[Login] Error response:', error.response?.data);
+      const errorMessage = error.response?.data?.message || error.message || 'Login failed. Please try again.';
       setError(errorMessage);
       toast.error(errorMessage, {
         position: 'top-center',
