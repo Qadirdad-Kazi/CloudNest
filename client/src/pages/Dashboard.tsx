@@ -83,14 +83,16 @@ const Dashboard: React.FC = () => {
     if (activeSection === 'my-drive') {
       setCurrentPath('/');
     }
-  }, [activeSection, setCurrentPath, clearSelection]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection]);
   
   // Prefetch data on component mount for better performance
   useEffect(() => {
     if (user) {
       prefetchData();
     }
-  }, [user, prefetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
   
   const handleSearch = async (query: string) => {
     setSearchQuery(query);

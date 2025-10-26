@@ -151,14 +151,14 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const breadcrumbs = useMemo(() => getBreadcrumbs(currentPath), [currentPath]);
 
   // Function to update storage info
-  const updateStorageInfo = async () => {
+  const updateStorageInfo = useCallback(async () => {
     try {
       const info = await getStorageInfo();
       setStorageUsed(info.storageUsed);
     } catch (error) {
       console.error('Error updating storage info:', error);
     }
-  };
+  }, [getStorageInfo]);
 
   // Cache management functions
   const getCachedData = useCallback((path: string) => {
@@ -311,6 +311,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Calculate storage used
   useEffect(() => {
     updateStorageInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files]);
 
   // Keep track of last load times per path
@@ -433,14 +434,16 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (currentUser) {
       loadFiles(currentPath);
     }
-  }, [currentPath, currentUser, loadFiles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPath, currentUser]);
 
   // Initialize data when user logs in
   useEffect(() => {
     if (currentUser && !isInitialized) {
       prefetchData();
     }
-  }, [currentUser, isInitialized, prefetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, isInitialized]);
 
   // Create a new folder
   const createFolder = async (name: string): Promise<void> => {
