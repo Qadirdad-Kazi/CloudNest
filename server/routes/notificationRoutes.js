@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import Notification from '../models/Notification.js';
+import websocketService from '../services/websocketService.js';
 
 const router = express.Router();
 
@@ -25,6 +26,16 @@ router.post('/', async (req, res) => {
     });
     
     await notification.save();
+    
+    // Broadcast notification in real-time via WebSocket
+    websocketService.broadcastNotification(req.user._id.toString(), {
+      id: notification._id,
+      type: notification.type,
+      message: notification.message,
+      read: notification.read,
+      createdAt: notification.createdAt
+    });
+    
     res.status(201).json(notification);
   } catch (error) {
     console.error('Error creating notification:', error);

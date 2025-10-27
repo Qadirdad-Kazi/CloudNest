@@ -13,6 +13,8 @@ import documentRoutes from './routes/documentRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import mongoose from 'mongoose';
 import cloudinary from './config/cloudinary.js';
+import http from 'http';
+import websocketService from './services/websocketService.js';
 
 dotenv.config();
 
@@ -83,8 +85,16 @@ const startServer = async () => {
       api_key: cloudinary.config().api_key,
       api_secret: 'Set (hidden)'
     });
-    app.listen(PORT, () => {
+    
+    // Create HTTP server for WebSocket support
+    const server = http.createServer(app);
+    
+    // Initialize WebSocket server
+    websocketService.initialize(server);
+    
+    server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+      console.log(`WebSocket server available at ws://localhost:${PORT}/ws`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -93,4 +103,7 @@ const startServer = async () => {
 };
 
 startServer();
+
+// Export websocketService for use in other modules
+export { websocketService };
 

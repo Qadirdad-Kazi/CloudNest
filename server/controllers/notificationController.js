@@ -1,5 +1,6 @@
 import Notification from '../models/Notification.js';
 import { validateObjectId } from '../utils/validation.js';
+import websocketService from '../services/websocketService.js';
 
 // Create a new notification
 const createNotification = async (req, res) => {
@@ -17,6 +18,18 @@ const createNotification = async (req, res) => {
     });
 
     await notification.save();
+
+    // Broadcast notification in real-time via WebSocket
+    websocketService.broadcastNotification(userId.toString(), {
+      id: notification._id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      read: notification.read,
+      createdAt: notification.createdAt,
+      relatedItemId: notification.relatedItemId,
+      relatedItemType: notification.relatedItemType
+    });
 
     res.status(201).json(notification);
   } catch (error) {

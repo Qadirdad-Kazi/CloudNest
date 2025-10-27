@@ -6,6 +6,7 @@ import { fileService } from '../services/fileService';
 import { folderService } from '../services/folderService';
 import { shareLinkService } from '../services/shareLinkService';
 import { normalizeFile } from '../services/fileService';
+import { wsClient } from '../utils/websocket';
 
 // Define the shape of our context
 interface FileContextType {
@@ -313,6 +314,52 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateStorageInfo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files]);
+
+  // WebSocket connection for real-time storage updates
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    // Connect to WebSocket
+    wsClient.connect();
+
+    // Handler for storage updates
+    const handleStorageUpdate = (storageData: any) => {
+      console.log('📊 Real-time storage update received:', storageData);
+      setStorageUsed(storageData.storageUsed);
+      
+      // Show notification if storage is getting full
+      if (storageData.isCriticallyFull) {
+        addNotification({
+          type: 'error',
+          message: `Storage critically full! Only ${formatBytes(storageData.remainingStorage)} remaining.`
+        });
+      } else if (storageData.isNearlyFull) {
+        addNotification({
+          type: 'warning',
+          message: `Storage is getting full. Only ${formatBytes(storageData.remainingStorage)} remaining.`
+        });
+      }
+    };
+
+    // Register handler
+    wsClient.on('storage_update', handleStorageUpdate);
+
+    // Cleanup on unmount
+    return () => {
+      wsClient.off('storage_update', handleStorageUpdate);
+    };
+  }, [currentUser, addNotification]);
+
+  // Helper function to format bytes
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   // Keep track of last load times per path
   const pathLoadTimestamps = React.useRef<Record<string, number>>({});

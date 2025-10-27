@@ -15,6 +15,13 @@ export const cloudinaryService = {
       
       const uploadUrl = `https://api.cloudinary.com/v1_1/${API_CONFIG.CLOUDINARY.CLOUD_NAME}/image/upload`;
       
+      console.log('Cloudinary Upload Configuration:', {
+        cloudName: API_CONFIG.CLOUDINARY.CLOUD_NAME,
+        uploadPreset: API_CONFIG.CLOUDINARY.UPLOAD_PRESET,
+        uploadUrl: uploadUrl,
+        fileName: file.name
+      });
+      
       const response = await axios.post(uploadUrl, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
@@ -32,7 +39,14 @@ export const cloudinaryService = {
       return response.data.secure_url;
     } catch (error: any) {
       console.error('Error uploading to Cloudinary:', error);
-      throw new Error(`Failed to upload image: ${error.message || 'Unknown error'}`);
+      if (error.response) {
+        console.error('Cloudinary Error Response:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+      }
+      throw new Error(`Failed to upload image: ${error.response?.data?.error?.message || error.message || 'Unknown error'}`);
     }
   },
 

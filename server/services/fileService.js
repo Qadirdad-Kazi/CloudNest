@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { GridFSBucket } from 'mongodb';
 import { Readable } from 'stream';
 import cloudinary from '../config/cloudinary.js';
+import websocketService from './websocketService.js';
+import User from '../models/User.js';
 
 let bucket;
 mongoose.connection.once('open', () => {
@@ -11,6 +13,29 @@ mongoose.connection.once('open', () => {
 });
 
 export const fileService = {
+  // Helper: Broadcast storage update
+  async broadcastStorageUpdate(userId) {
+    try {
+      const user = await User.findById(userId).select('storageUsed storageLimit');
+      if (user) {
+        const storagePercentage = user.storageLimit > 0 
+          ? (user.storageUsed / user.storageLimit) * 100 
+          : 0;
+        
+        websocketService.broadcastStorageUpdate(userId, {
+          storageUsed: user.storageUsed,
+          storageLimit: user.storageLimit,
+          storagePercentage: parseFloat(storagePercentage.toFixed(2)),
+          isNearlyFull: storagePercentage > 80,
+          isCriticallyFull: storagePercentage > 95,
+          remainingStorage: user.storageLimit - user.storageUsed
+        });
+      }
+    } catch (error) {
+      console.error('Error broadcasting storage update:', error);
+    }
+  },
+
   // Get file by ID
   async getFileById(userId, fileId) {
     try {
@@ -125,6 +150,9 @@ export const fileService = {
       console.log('Creating file document:', newFile);
       await newFile.save();
       console.log('File document created successfully');
+
+      // Broadcast storage update in real-time
+      await this.broadcastStorageUpdate(userId);
 
       return newFile;
     } catch (error) {
@@ -293,6 +321,9 @@ export const fileService = {
       // Delete file document regardless of cloud storage deletion success
       await file.deleteOne();
       console.log(`File document deleted from database: ${fileId}`);
+
+      // Broadcast storage update in real-time
+      await this.broadcastStorageUpdate(userId);
 
       return { success: true };
     } catch (error) {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { notificationService } from '../services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
+import { wsClient } from '../utils/websocket';
 
 export type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
@@ -64,6 +65,44 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setNotifications([]);
       setUnreadCount(0);
     }
+  }, [currentUser]);
+
+  // WebSocket connection for real-time notifications
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    // Connect to WebSocket (if not already connected)
+    wsClient.connect();
+
+    // Handler for real-time notifications
+    const handleNotification = (notificationData: any) => {
+      console.log('🔔 Real-time notification received:', notificationData);
+      
+      // Add the new notification to the list
+      const newNotification: Notification = {
+        id: notificationData.id?.toString() || `ws-${Date.now()}`,
+        type: notificationData.type || 'info',
+        message: notificationData.message,
+        title: notificationData.title,
+        read: notificationData.read || false,
+        createdAt: notificationData.createdAt || new Date().toISOString(),
+        relatedItemId: notificationData.relatedItemId,
+        relatedItemType: notificationData.relatedItemType
+      };
+
+      setNotifications(prev => [newNotification, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    };
+
+    // Register handler
+    wsClient.on('notification', handleNotification);
+
+    // Cleanup on unmount
+    return () => {
+      wsClient.off('notification', handleNotification);
+    };
   }, [currentUser]);
 
   const loadNotifications = async (page = 1) => {
