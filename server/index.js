@@ -21,6 +21,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// Export app for Vercel serverless (must be before any logic)
+export default app;
+
 // CORS configuration
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
@@ -86,32 +89,31 @@ const startServer = async () => {
       api_secret: 'Set (hidden)'
     });
     
-    // Create HTTP server for WebSocket support
-    const server = http.createServer(app);
-    
-    // Initialize WebSocket server (only works in non-serverless environments)
-    try {
-      if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    // Only start server if not in Vercel (Vercel handles this)
+    if (!process.env.VERCEL) {
+      // Create HTTP server for WebSocket support
+      const server = http.createServer(app);
+      
+      // Initialize WebSocket server (only in local/non-serverless environments)
+      try {
         websocketService.initialize(server);
         console.log('✅ WebSocket server initialized');
-      } else {
-        console.log('⚠️ WebSocket not available in serverless environment (Vercel)');
+      } catch (error) {
+        console.warn('⚠️ WebSocket initialization failed:', error.message);
       }
-    } catch (error) {
-      console.warn('⚠️ WebSocket initialization failed (expected in serverless):', error.message);
+      
+      server.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+      });
+    } else {
+      console.log('✅ Running in Vercel serverless environment');
     }
-    
-    server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
   }
 };
 
+// Start server (only in non-Vercel environments)
 startServer();
-
-// Export websocketService for use in other modules
-export { websocketService };
 
