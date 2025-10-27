@@ -10,7 +10,12 @@
     "build": "npm install",
     "lint": "eslint .",
     "test": "jest",
-    "clear-db": "node scripts/clearDatabase.js"
+    "clear-db": "node scripts/clearDatabase.js",
+    "fix-cloudids": "node scripts/fixCloudIds.js",
+    "check-cloudids": "node scripts/checkCloudIds.js",
+    "test-delete": "node scripts/testDelete.js",
+    "check-file-status": "node scripts/checkFileStatus.js",
+    "check-all-files": "node scripts/checkAllFiles.js"
   },
   "engines": {
     "node": ">=18.0.0"

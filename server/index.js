@@ -10,6 +10,7 @@ import userRoutes from './routes/userRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import imageRoutes from './routes/imageRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import mongoose from 'mongoose';
 import cloudinary from './config/cloudinary.js';
@@ -63,6 +64,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Friendly root route for Vercel
 app.get('/', (req, res) => {

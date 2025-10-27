@@ -458,52 +458,24 @@ export const fileService = {
    */
   async emptyTrash(): Promise<void> {
     try {
-      // Get all files in trash
-      const trashedFiles = await this.getTrashedFiles();
+      console.log('🗑️ Emptying trash - calling server endpoint...');
       
-      if (!trashedFiles || trashedFiles.length === 0) {
-        return;
-      }
+      // Let the server handle everything - it will delete from both Cloudinary and MongoDB
+      const response = await axios.delete(`${API_ENDPOINTS.FILES.EMPTY_TRASH}`);
       
-      // Delete each file permanently
-      const errors: Error[] = [];
-      let successCount = 0;
+      console.log('✅ Empty trash response:', response.data);
       
-      for (const file of trashedFiles) {
-        if (!file.id || file.id === 'undefined') continue;
-        
-        try {
-          await this.permanentlyDeleteFile(file.id);
-          successCount++;
-        } catch (error) {
-          if (error instanceof Error && error.message.includes('File permanently deleted')) {
-            // This is actually a success
-            successCount++;
-          } else {
-            console.error(`Error deleting file ${file.id}:`, error);
-            errors.push(error as Error);
-          }
-          // Continue with next file
-        }
-      }
-      
-      // Notify the server that trash has been emptied
-      try {
-        await axios.delete(`${API_ENDPOINTS.FILES.EMPTY_TRASH}`);
-      } catch (error) {
-        console.error('Error notifying server about empty trash:', error);
-        // Don't throw here as files are already deleted
-      }
-
-      // Log the final results
-      console.log(`Trash emptying completed. Successfully deleted ${successCount} files.`);
-      
-      // If there were any actual errors, report them
-      if (errors.length > 0) {
-        throw new Error(`Failed to delete ${errors.length} files. ${successCount} files were successfully deleted.`);
+      if (response.data.stats) {
+        console.log(`📊 Deleted ${response.data.stats.filesDeleted} files and ${response.data.stats.foldersDeleted} folders`);
       }
     } catch (error: any) {
-      console.error('Error emptying trash:', error);
+      console.error('❌ Error emptying trash:', error);
+      
+      if (error.response) {
+        console.error('Server response:', error.response.data);
+        throw new Error(`Failed to empty trash: ${error.response.data.message || error.message}`);
+      }
+      
       throw new Error(`Failed to empty trash: ${error?.message || 'Unknown error'}`);
     }
   },
