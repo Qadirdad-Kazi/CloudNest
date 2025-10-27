@@ -6,7 +6,7 @@ import { API_CONFIG, API_ENDPOINTS } from '../config/api';
 const UPLOAD_TIMEOUT = 120000; // 2 minutes
 
 export const cloudinaryService = {
-  async uploadImage(file: File, onProgress?: (progress: number) => void): Promise<string> {
+  async uploadImage(file: File, onProgress?: (progress: number) => void): Promise<{ url: string; cloudId: string }> {
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -36,7 +36,18 @@ export const cloudinaryService = {
       });
       
       if (onProgress) onProgress(100);
-      return response.data.secure_url;
+      
+      console.log('✅ Cloudinary response:', {
+        url: response.data.secure_url,
+        public_id: response.data.public_id,
+        format: response.data.format,
+        bytes: response.data.bytes
+      });
+      
+      return {
+        url: response.data.secure_url,
+        cloudId: response.data.public_id // This is what we need for deletion!
+      };
     } catch (error: any) {
       console.error('Error uploading to Cloudinary:', error);
       if (error.response) {

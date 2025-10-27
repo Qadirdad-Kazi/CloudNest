@@ -8,6 +8,7 @@ import { shareLinkService } from '../services/shareLinkService';
 import { normalizeFile } from '../services/fileService';
 import { wsClient } from '../utils/websocket';
 import UploadProgress from '../components/ui/UploadProgress';
+import CacheIndicator from '../components/ui/CacheIndicator';
 
 // Define the shape of our context
 interface FileContextType {
@@ -129,15 +130,24 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [uploadFileName, setUploadFileName] = useState('');
   const [uploadStatus, setUploadStatus] = useState<'uploading' | 'success' | 'error'>('uploading');
+  
+  // Cache indicator UI state
+  const [showCacheIndicator, setShowCacheIndicator] = useState(false);
+  const [cacheIndicatorType, setCacheIndicatorType] = useState<'hit' | 'miss' | 'clear'>('hit');
+  const [cacheIndicatorPath, setCacheIndicatorPath] = useState<string>('');
 
   // Performance optimizations
   const [dataCache, setDataCache] = useState<DataCache>({});
   const [isInitialized, setIsInitialized] = useState(false);
   const loadingQueue = React.useRef<Set<string>>(new Set());
   const cacheTTL = 30000; // 30 seconds cache TTL
+  
+  // Cache statistics
+  const cacheStats = React.useRef({ hits: 0, misses: 0, clears: 0 });
 
   // Memoize setUploadProgress to prevent lint warnings
   const updateUploadProgress = useCallback((progress: number) => {
+    console.log(`📊 Upload progress: ${progress}%`);
     _setUploadProgress(progress);
   }, []);
 
@@ -167,30 +177,78 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [getStorageInfo]);
 
-  // Cache management functions
+  // Cache management functions with detailed logging
   const getCachedData = useCallback((path: string) => {
     const cached = dataCache[path];
-    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+    const now = Date.now();
+    
+    if (cached && now - cached.timestamp < cached.ttl) {
+      const age = Math.round((now - cached.timestamp) / 1000);
+      const remaining = Math.round((cached.ttl - (now - cached.timestamp)) / 1000);
+      cacheStats.current.hits++;
+      console.log(`✅ Cache HIT for "${path}" | Age: ${age}s | Remaining: ${remaining}s | Files: ${cached.files.length} | Folders: ${cached.folders.length} | Total hits: ${cacheStats.current.hits}`);
+      
+      // Show cache hit indicator
+      setCacheIndicatorType('hit');
+      setCacheIndicatorPath(path);
+      setShowCacheIndicator(true);
+      
       return cached;
     }
+    
+    cacheStats.current.misses++;
+    console.log(`❌ Cache MISS for "${path}" | Total misses: ${cacheStats.current.misses}`);
+    
+    // Show cache miss indicator
+    setCacheIndicatorType('miss');
+    setCacheIndicatorPath(path);
+    setShowCacheIndicator(true);
+    
     return null;
   }, [dataCache]);
 
   const setCachedData = useCallback((path: string, files: FileItem[], folders: Folder[]) => {
+    const ttl = cacheTTL;
+    console.log(`💾 Caching data for "${path}" | Files: ${files.length} | Folders: ${folders.length} | TTL: ${ttl/1000}s`);
+    
     setDataCache(prev => ({
       ...prev,
       [path]: {
         files,
         folders,
         timestamp: Date.now(),
-        ttl: cacheTTL
+        ttl
       }
     }));
   }, [cacheTTL]);
 
   const clearCache = useCallback(() => {
+    const cachedPaths = Object.keys(dataCache);
+    cacheStats.current.clears++;
+    console.log(`🗑️ Clearing cache | Paths cleared: ${cachedPaths.length} | ${cachedPaths.join(', ')} | Total clears: ${cacheStats.current.clears}`);
+    
+    // Show cache clear indicator
+    setCacheIndicatorType('clear');
+    setCacheIndicatorPath(cachedPaths.join(', ') || 'All');
+    setShowCacheIndicator(true);
+    
     setDataCache({});
-  }, []);
+  }, [dataCache]);
+  
+  // Log cache statistics periodically
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      const totalRequests = cacheStats.current.hits + cacheStats.current.misses;
+      const hitRate = totalRequests > 0 ? ((cacheStats.current.hits / totalRequests) * 100).toFixed(1) : '0.0';
+      const cachedPaths = Object.keys(dataCache);
+      
+      if (totalRequests > 0) {
+        console.log(`📈 Cache Stats | Hit Rate: ${hitRate}% (${cacheStats.current.hits}/${totalRequests}) | Clears: ${cacheStats.current.clears} | Cached Paths: ${cachedPaths.length}`);
+      }
+    }, 60000); // Log every 60 seconds
+    
+    return () => clearInterval(interval);
+  }, [dataCache]);
 
   // Function to refresh files and folders with caching
   const refreshFiles = async () => {
@@ -548,17 +606,25 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(true);
       setError(null);
       
-      // Show upload progress UI
+      console.log(`📤 Starting upload for "${file.name}" (${(file.size / 1024).toFixed(2)} KB)`);
+      
+      // Show upload progress UI immediately
       setUploadFileName(file.name);
       setUploadStatus('uploading');
       setShowUploadProgress(true);
       updateUploadProgress(0);
       
+      // Small delay to ensure UI renders
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Upload the file with progress tracking
       await fileService.uploadFile(file, currentPath, (progress) => {
+        console.log(`📊 Upload progress callback: ${progress}%`);
         updateUploadProgress(progress);
         if (onProgress) onProgress(progress);
       });
+      
+      console.log(`✅ Upload completed for "${file.name}"`);
       
       // Clear cache to ensure fresh data
       clearCache();
@@ -569,8 +635,11 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUploadStatus('success');
       updateUploadProgress(100);
       
+      console.log(`✨ Upload success UI showing for "${file.name}"`);
+      
       // Auto-hide after 3 seconds
       setTimeout(() => {
+        console.log(`🚮 Hiding upload progress for "${file.name}"`);
         setShowUploadProgress(false);
       }, 3000);
       
@@ -579,14 +648,17 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         message: `${file.name} uploaded successfully`
       });
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('❌ Error uploading file:', error);
       setError(`Failed to upload ${file.name}`);
       
       // Show error state
       setUploadStatus('error');
       
+      console.log(`⚠️ Upload error UI showing for "${file.name}"`);
+      
       // Auto-hide after 5 seconds
       setTimeout(() => {
+        console.log(`🚮 Hiding upload error for "${file.name}"`);
         setShowUploadProgress(false);
       }, 5000);
       
@@ -1421,6 +1493,11 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           onClose={() => setShowUploadProgress(false)}
         />
       )}
+      <CacheIndicator
+        show={showCacheIndicator}
+        type={cacheIndicatorType}
+        path={cacheIndicatorPath}
+      />
     </FileContext.Provider>
   );
 };

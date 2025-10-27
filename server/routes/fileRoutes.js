@@ -54,15 +54,22 @@ router.post('/', authenticate, async (req, res) => {
     else if (type.includes('zip') || type.includes('rar') || type.includes('tar') || type.includes('gz')) category = 'archives';
     else if (type.includes('javascript') || type.includes('typescript') || type.includes('python') || type.includes('java') || type.includes('html') || type.includes('css')) category = 'code';
     
-    // Extract cloudId from URL if using Cloudinary
-    let cloudId = '';
-    if (cloudProvider === 'cloudinary' && url) {
-      // Try to extract the public ID from the Cloudinary URL
-      const matches = url.match(/\/v\d+\/([^\/\.]+)/);
-      cloudId = matches && matches[1] ? matches[1] : `file_${Date.now()}`;
+    // Use cloudId from client if provided, otherwise extract from URL
+    let cloudId = req.body.cloudId || '';
+    
+    if (!cloudId) {
+      // Fallback: Try to extract from URL if not provided
+      if (cloudProvider === 'cloudinary' && url) {
+        // Try to extract the public ID from the Cloudinary URL
+        const matches = url.match(/\/v\d+\/([^\/\.]+)/);
+        cloudId = matches && matches[1] ? matches[1] : `file_${Date.now()}`;
+        console.log('⚠️ Warning: cloudId not provided, extracted from URL:', cloudId);
+      } else {
+        // For MongoDB, use the last part of the URL or generate a unique ID
+        cloudId = url ? url.split('/').pop() : `file_${Date.now()}`;
+      }
     } else {
-      // For MongoDB, use the last part of the URL or generate a unique ID
-      cloudId = url ? url.split('/').pop() : `file_${Date.now()}`;
+      console.log('✅ Using cloudId from client:', cloudId);
     }
     
     // Create new file document
@@ -269,33 +276,48 @@ router.delete('/trash/empty', authenticate, async (req, res) => {
     // Delete each file permanently
     const fileDeletePromises = trashedFiles.map(async (file) => {
       try {
+        console.log(`🗑️ Deleting file: ${file.name} (${file._id}) | Provider: ${file.cloudProvider} | cloudId: ${file.cloudId}`);
+        
         // Delete from cloud storage if applicable
         if (file.cloudProvider === 'cloudinary' && file.cloudId) {
           try {
-            await cloudinary.uploader.destroy(file.cloudId);
-            console.log(`Successfully deleted file from Cloudinary: ${file.cloudId}`);
+            console.log(`☁️ Attempting to delete from Cloudinary with cloudId: ${file.cloudId}`);
+            const result = await cloudinary.uploader.destroy(file.cloudId);
+            console.log(`✅ Cloudinary deletion result:`, result);
+            
+            if (result.result === 'ok') {
+              console.log(`✅ Successfully deleted file from Cloudinary: ${file.cloudId}`);
+            } else if (result.result === 'not found') {
+              console.warn(`⚠️ File not found in Cloudinary (already deleted?): ${file.cloudId}`);
+            } else {
+              console.warn(`⚠️ Unexpected Cloudinary result: ${result.result}`);
+            }
           } catch (cloudinaryError) {
-            console.warn(`Warning: Could not delete from Cloudinary: ${cloudinaryError.message}`);
+            console.error(`❌ Error deleting from Cloudinary:`, cloudinaryError);
+            console.warn(`⚠️ Warning: Could not delete from Cloudinary: ${cloudinaryError.message}`);
             // Continue with deletion even if Cloudinary fails
           }
         } else if (file.cloudProvider === 'mongodb' && file.cloudId) {
           try {
+            console.log(`📦 Attempting to delete from GridFS with cloudId: ${file.cloudId}`);
             await bucket.delete(new mongoose.Types.ObjectId(file.cloudId));
-            console.log(`Successfully deleted file from GridFS: ${file.cloudId}`);
+            console.log(`✅ Successfully deleted file from GridFS: ${file.cloudId}`);
           } catch (gridFsError) {
-            // If the file doesn't exist in GridFS, just log a warning and continue
-            console.warn(`Warning: Could not delete from GridFS: ${gridFsError.message}`);
+            console.error(`❌ Error deleting from GridFS:`, gridFsError);
+            console.warn(`⚠️ Warning: Could not delete from GridFS: ${gridFsError.message}`);
             // Continue with deletion even if GridFS fails
           }
+        } else {
+          console.log(`⚠️ No cloud storage deletion needed (provider: ${file.cloudProvider}, cloudId: ${file.cloudId || 'missing'})`);
         }
         
         // Delete file document regardless of cloud storage deletion success
         await File.deleteOne({ _id: file._id });
-        console.log(`File document deleted from database: ${file._id}`);
-        return { success: true, id: file._id, type: 'file' };
+        console.log(`✅ File document deleted from database: ${file._id}`);
+        return { success: true, id: file._id, type: 'file', name: file.name };
       } catch (error) {
-        console.error(`Error deleting file ${file._id}:`, error);
-        return { success: false, id: file._id, type: 'file', error };
+        console.error(`❌ Error deleting file ${file._id}:`, error);
+        return { success: false, id: file._id, type: 'file', name: file.name, error };
       }
     });
 

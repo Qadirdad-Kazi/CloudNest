@@ -294,34 +294,50 @@ export const fileService = {
         throw new Error('File not found');
       }
 
+      console.log(`🗑️ Permanently deleting file: ${file.name} (${file._id}) | Provider: ${file.cloudProvider} | cloudId: ${file.cloudId}`);
+
       // Delete from cloud storage
       try {
         if (file.cloudProvider === 'cloudinary' && file.cloudId) {
           try {
-            await cloudinary.uploader.destroy(file.cloudId);
-            console.log(`Successfully deleted file from Cloudinary: ${file.cloudId}`);
+            console.log(`☁️ Attempting to delete from Cloudinary with cloudId: ${file.cloudId}`);
+            const result = await cloudinary.uploader.destroy(file.cloudId);
+            console.log(`✅ Cloudinary deletion result:`, result);
+            
+            if (result.result === 'ok') {
+              console.log(`✅ Successfully deleted file from Cloudinary: ${file.cloudId}`);
+            } else if (result.result === 'not found') {
+              console.warn(`⚠️ File not found in Cloudinary (already deleted?): ${file.cloudId}`);
+            } else {
+              console.warn(`⚠️ Unexpected Cloudinary result: ${result.result}`);
+            }
           } catch (cloudinaryError) {
-            console.warn(`Warning: Could not delete from Cloudinary: ${cloudinaryError.message}`);
+            console.error(`❌ Error deleting from Cloudinary:`, cloudinaryError);
+            console.warn(`⚠️ Warning: Could not delete from Cloudinary: ${cloudinaryError.message}`);
             // Continue with deletion even if Cloudinary fails
           }
         } else if (file.cloudProvider === 'mongodb' && file.cloudId && bucket) {
           try {
+            console.log(`📦 Attempting to delete from GridFS with cloudId: ${file.cloudId}`);
             await bucket.delete(new mongoose.Types.ObjectId(file.cloudId));
-            console.log(`Successfully deleted file from GridFS: ${file.cloudId}`);
+            console.log(`✅ Successfully deleted file from GridFS: ${file.cloudId}`);
           } catch (gridFsError) {
-            // If the file doesn't exist in GridFS, just log a warning and continue
-            console.warn(`Warning: Could not delete from GridFS: ${gridFsError.message}`);
+            console.error(`❌ Error deleting from GridFS:`, gridFsError);
+            console.warn(`⚠️ Warning: Could not delete from GridFS: ${gridFsError.message}`);
             // Continue with deletion even if GridFS fails
           }
+        } else {
+          console.log(`⚠️ No cloud storage deletion needed (provider: ${file.cloudProvider}, cloudId: ${file.cloudId || 'missing'})`);
         }
       } catch (storageError) {
-        console.warn(`Warning: Error during cloud storage deletion: ${storageError.message}`);
+        console.error(`❌ Error during cloud storage deletion:`, storageError);
+        console.warn(`⚠️ Warning: Error during cloud storage deletion: ${storageError.message}`);
         // Continue with deletion even if cloud storage deletion fails
       }
 
       // Delete file document regardless of cloud storage deletion success
       await file.deleteOne();
-      console.log(`File document deleted from database: ${fileId}`);
+      console.log(`✅ File document deleted from database: ${fileId}`);
 
       // Broadcast storage update in real-time
       await this.broadcastStorageUpdate(userId);

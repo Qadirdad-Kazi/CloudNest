@@ -104,25 +104,31 @@ export const fileService = {
       let fileUrl = '';
       let responseData;
       
+      let cloudId = '';
+      
       if (isImage) {
         // Upload image to Cloudinary
-        console.log('Uploading image to Cloudinary:', file.name);
-        fileUrl = await cloudinaryService.uploadImage(file, onProgress);
+        console.log(`📸 Uploading image to Cloudinary: "${file.name}" (${(file.size / 1024).toFixed(2)} KB)`);
+        const cloudinaryResult = await cloudinaryService.uploadImage(file, (progress) => {
+          console.log(`📊 Cloudinary upload progress: ${progress}%`);
+          if (onProgress) onProgress(progress);
+        });
+        
+        fileUrl = cloudinaryResult.url;
+        cloudId = cloudinaryResult.cloudId;
         
         // Ensure URL has https:// prefix
         if (fileUrl && !fileUrl.startsWith('http')) {
           fileUrl = 'https://' + fileUrl;
         }
         
-        console.log('Cloudinary upload successful, URL:', fileUrl);
-        
-        // Extract cloudinary ID for debugging
-        const matches = fileUrl.match(/\/v\d+\/([^\/\.]+)/);
-        const cloudId = matches && matches[1] ? matches[1] : null;
-        console.log('Extracted Cloudinary ID:', cloudId);
+        console.log(`✅ Cloudinary upload successful for "${file.name}"`, {
+          url: fileUrl,
+          cloudId: cloudId
+        });
       } else {
         // For non-image files, use MongoDB GridFS via our API
-        console.log('Uploading file to MongoDB GridFS:', file.name);
+        console.log(`📄 Uploading file to MongoDB GridFS: "${file.name}" (${(file.size / 1024).toFixed(2)} KB)`);
         
         const formData = new FormData();
         formData.append('file', file);
@@ -138,6 +144,7 @@ export const fileService = {
             onUploadProgress: (progressEvent: AxiosProgressEvent) => {
               if (progressEvent.total && onProgress) {
                 const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                console.log(`📊 MongoDB upload progress: ${percentCompleted}%`);
                 onProgress(percentCompleted);
               }
             },
@@ -147,6 +154,7 @@ export const fileService = {
         
         responseData = response.data;
         fileUrl = responseData.url;
+        console.log(`✅ MongoDB GridFS upload successful for "${file.name}"`);
       }
       
       // Create file record in database
@@ -156,7 +164,8 @@ export const fileService = {
         size: file.size,
         path: parentPath,
         url: fileUrl,
-        cloudProvider: isImage ? 'cloudinary' : 'mongodb'
+        cloudProvider: isImage ? 'cloudinary' : 'mongodb',
+        cloudId: cloudId || undefined // Send cloudId if available
       };
       
       console.log('Creating file record with data:', fileData);
