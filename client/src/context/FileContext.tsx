@@ -520,6 +520,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return [...prev, newFolder];
       });
       
+      // Clear cache to ensure fresh data
+      clearCache();
+      
       // Reload the current directory to ensure consistency
       await loadFiles(currentPath);
       
@@ -557,6 +560,8 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (onProgress) onProgress(progress);
       });
       
+      // Clear cache to ensure fresh data
+      clearCache();
       await refreshFiles();
       await updateStorageInfo();
       
@@ -605,6 +610,8 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await folderService.deleteFolder(item.id, false);
         }
       }
+      // Clear cache to ensure fresh data
+      clearCache();
       await refreshFiles();
       await updateStorageInfo();
       addNotification({
@@ -640,6 +647,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           folder.id === item.id ? updatedFolder : folder
         ));
       }
+      
+      // Clear cache to ensure fresh data
+      clearCache();
       
       addNotification({
         type: 'success',
@@ -800,6 +810,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         await fileService.moveToTrash(fileId);
       }
+
+      // Clear cache to ensure fresh data
+      clearCache();
 
       // Update the files list
       setFiles(prev => prev.filter(file => file.id !== fileId));
@@ -1026,10 +1039,17 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(true);
       setError(null);
       
-      // Implement folder deletion logic here
-      // This would call a folderService.deleteFolder function
-      // For now, we'll just log it
-      console.log(`Deleting folder ${folderId}, permanent: ${permanent}`);
+      if (!folderId) {
+        throw new Error('Folder ID is required');
+      }
+      
+      await folderService.deleteFolder(folderId, permanent);
+      
+      // Clear cache to ensure fresh data
+      clearCache();
+      
+      // Update the folders list
+      setFolders(prev => prev.filter(folder => folder.id !== folderId));
       
       addNotification({
         type: 'success',
@@ -1042,6 +1062,7 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         type: 'error',
         message: `Failed to delete folder: ${error.message || 'Unknown error'}`
       });
+      throw error; // Re-throw to handle in component
     } finally {
       setIsLoading(false);
     }
@@ -1051,6 +1072,8 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const moveToTrash = async (fileId: string) => {
     try {
       await fileService.moveToTrash(fileId);
+      // Clear cache to ensure fresh data is loaded
+      clearCache();
       // Refresh the current view
       if (currentPath === '/trash') {
         await loadTrashedFiles();
@@ -1076,6 +1099,9 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       await fileService.restoreFromTrash(fileId);
+      
+      // Clear cache to ensure fresh data
+      clearCache();
 
       // Update the files list
       setFiles(prev => prev.map(file => {
@@ -1107,6 +1133,8 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const emptyTrash = async () => {
     try {
       await fileService.emptyTrash();
+      // Clear cache to ensure fresh data
+      clearCache();
       await refreshFiles();
       await updateStorageInfo();
       addNotification({

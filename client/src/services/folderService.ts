@@ -80,9 +80,11 @@ export const folderService = {
   },
   
   // Delete a folder
-  async deleteFolder(folderId: string): Promise<void> {
+  async deleteFolder(folderId: string, permanent: boolean = false): Promise<void> {
     try {
-      await axios.delete(`${API_ENDPOINTS.FOLDERS.DELETE}/${folderId}`);
+      await axios.delete(`${API_ENDPOINTS.FOLDERS.DELETE}/${folderId}`, {
+        params: { permanent }
+      });
     } catch (error: any) {
       console.error('Error deleting folder:', error);
       if (error.response) {
