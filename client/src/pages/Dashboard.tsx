@@ -132,46 +132,12 @@ const Dashboard: React.FC = () => {
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    const uploadId = `upload-${Date.now()}`;
     
     try {
-      // Create initial progress notification
-      addNotification({
-        id: uploadId,
-        type: 'info',
-        message: `Uploading ${file.name}...`,
-        title: 'Uploading',
-        progress: 0
-      });
-
-      await uploadFile(file, (progress) => {
-        // Update progress notification
-        addNotification({
-          id: uploadId,
-          type: 'info',
-          message: `Uploading ${file.name}...`,
-          title: 'Uploading',
-          progress: progress
-        });
-      });
-      
-      // Show success notification
-      addNotification({
-        id: uploadId,
-        type: 'success',
-        message: `${file.name} uploaded successfully`,
-        title: 'Upload Complete',
-        progress: 100
-      });
+      // Upload file (progress is handled by FileContext)
+      await uploadFile(file);
     } catch (error) {
       console.error('Error uploading file:', error);
-      // Show error notification
-      addNotification({
-        id: uploadId,
-        type: 'error',
-        message: `Failed to upload ${file.name}`,
-        title: 'Upload Failed'
-      });
     }
     
     // Reset the input

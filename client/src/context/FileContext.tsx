@@ -7,6 +7,7 @@ import { folderService } from '../services/folderService';
 import { shareLinkService } from '../services/shareLinkService';
 import { normalizeFile } from '../services/fileService';
 import { wsClient } from '../utils/websocket';
+import UploadProgress from '../components/ui/UploadProgress';
 
 // Define the shape of our context
 interface FileContextType {
@@ -123,6 +124,11 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [error, setError] = useState<string | null>(null);
   const [storageUsed, setStorageUsed] = useState(0);
   const storageLimit = 1024 * 1024 * 1024; // 1GB
+
+  // Upload progress UI state
+  const [showUploadProgress, setShowUploadProgress] = useState(false);
+  const [uploadFileName, setUploadFileName] = useState('');
+  const [uploadStatus, setUploadStatus] = useState<'uploading' | 'success' | 'error'>('uploading');
 
   // Performance optimizations
   const [dataCache, setDataCache] = useState<DataCache>({});
@@ -535,61 +541,53 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Upload file with storage update
   const uploadFile = async (file: File, onProgress?: (progress: number) => void) => {
-    const uploadId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
     try {
       setIsLoading(true);
       setError(null);
       
-      // Reset progress
+      // Show upload progress UI
+      setUploadFileName(file.name);
+      setUploadStatus('uploading');
+      setShowUploadProgress(true);
       updateUploadProgress(0);
-      
-      // Show initial progress notification
-      addNotification({
-        id: uploadId,
-        type: 'info',
-        message: `Uploading ${file.name}...`,
-        title: 'Uploading',
-        progress: 0
-      });
       
       // Upload the file with progress tracking
       await fileService.uploadFile(file, currentPath, (progress) => {
         updateUploadProgress(progress);
-        
-        // Update progress notification
-        addNotification({
-          id: uploadId,
-          type: 'info',
-          message: `Uploading ${file.name}...`,
-          title: 'Uploading',
-          progress: progress
-        });
-        
         if (onProgress) onProgress(progress);
       });
       
       await refreshFiles();
       await updateStorageInfo();
       
-      // Show success notification
+      // Show success state
+      setUploadStatus('success');
+      updateUploadProgress(100);
+      
+      // Auto-hide after 3 seconds
+      setTimeout(() => {
+        setShowUploadProgress(false);
+      }, 3000);
+      
       addNotification({
-        id: uploadId,
         type: 'success',
-        message: `${file.name} uploaded successfully`,
-        title: 'Upload Complete',
-        progress: 100
+        message: `${file.name} uploaded successfully`
       });
     } catch (error) {
       console.error('Error uploading file:', error);
       setError(`Failed to upload ${file.name}`);
       
-      // Show error notification
+      // Show error state
+      setUploadStatus('error');
+      
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        setShowUploadProgress(false);
+      }, 5000);
+      
       addNotification({
-        id: uploadId,
         type: 'error',
-        message: `Failed to upload ${file.name}`,
-        title: 'Upload Failed'
+        message: `Failed to upload ${file.name}`
       });
       throw error;
     } finally {
@@ -1387,6 +1385,14 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <FileContext.Provider value={contextValue}>
       {children}
+      {showUploadProgress && (
+        <UploadProgress
+          fileName={uploadFileName}
+          progress={uploadProgress}
+          status={uploadStatus}
+          onClose={() => setShowUploadProgress(false)}
+        />
+      )}
     </FileContext.Provider>
   );
 };
