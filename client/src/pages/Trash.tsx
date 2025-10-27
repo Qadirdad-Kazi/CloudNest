@@ -136,23 +136,26 @@ const Trash: React.FC = () => {
 
     try {
       setIsLoading(true);
-      // Delete each file permanently
-      for (const file of trashedFiles) {
-        const fileId = file.id || (file as any)._id;
-        if (!fileId || fileId === 'undefined') {
-          console.error('Invalid file object:', file);
-          continue;
-        }
-        await deleteFile(fileId, true); // true for permanent deletion
-      }
-      setTrashedFiles([]);
+      console.log(`🗑️ Emptying trash with ${trashedFiles.length} files...`);
+      
+      // Use the fixed emptyTrash from FileContext - it handles everything server-side
+      await emptyTrash();
+      
+      // Reload trash to confirm it's empty
+      await loadTrashedFiles();
+      
       setSelectedFiles([]); // Clear selected files
+      
       addNotification({
         type: 'success',
-        message: `Successfully deleted ${trashedFiles.length} file(s) from trash`,
+        message: `Successfully deleted all files from trash`,
       });
     } catch (error) {
-      console.error('Error emptying trash:', error);
+      console.error('❌ Error emptying trash:', error);
+      
+      // Reload to see current state
+      await loadTrashedFiles();
+      
       addNotification({
         type: 'error',
         message: 'Failed to empty trash',

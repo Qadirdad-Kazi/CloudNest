@@ -10,6 +10,17 @@ import { bucket } from '../config/mongodb.js';
 
 const router = express.Router();
 
+// Debug endpoint to check Cloudinary configuration (remove in production)
+router.get('/debug/cloudinary-config', authenticate, (req, res) => {
+  const config = cloudinary.config();
+  res.json({
+    cloud_name: config.cloud_name || '❌ Missing',
+    api_key: config.api_key ? '✅ Set' : '❌ Missing',
+    api_secret: config.api_secret ? '✅ Set' : '❌ Missing',
+    isConfigured: !!(config.cloud_name && config.api_key && config.api_secret)
+  });
+});
+
 // Apply authentication middleware to all routes
 router.use(authenticate);
 
