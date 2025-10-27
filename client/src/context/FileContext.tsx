@@ -535,6 +535,8 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Upload file with storage update
   const uploadFile = async (file: File, onProgress?: (progress: number) => void) => {
+    const uploadId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -542,26 +544,52 @@ export const FileProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Reset progress
       updateUploadProgress(0);
       
+      // Show initial progress notification
+      addNotification({
+        id: uploadId,
+        type: 'info',
+        message: `Uploading ${file.name}...`,
+        title: 'Uploading',
+        progress: 0
+      });
+      
       // Upload the file with progress tracking
       await fileService.uploadFile(file, currentPath, (progress) => {
         updateUploadProgress(progress);
+        
+        // Update progress notification
+        addNotification({
+          id: uploadId,
+          type: 'info',
+          message: `Uploading ${file.name}...`,
+          title: 'Uploading',
+          progress: progress
+        });
+        
         if (onProgress) onProgress(progress);
       });
       
       await refreshFiles();
       await updateStorageInfo();
       
+      // Show success notification
       addNotification({
+        id: uploadId,
         type: 'success',
-        message: `Successfully uploaded ${file.name}`
+        message: `${file.name} uploaded successfully`,
+        title: 'Upload Complete',
+        progress: 100
       });
     } catch (error) {
       console.error('Error uploading file:', error);
       setError(`Failed to upload ${file.name}`);
       
+      // Show error notification
       addNotification({
+        id: uploadId,
         type: 'error',
-        message: `Failed to upload ${file.name}`
+        message: `Failed to upload ${file.name}`,
+        title: 'Upload Failed'
       });
       throw error;
     } finally {

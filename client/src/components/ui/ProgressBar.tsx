@@ -13,6 +13,9 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   color = 'bg-indigo-600',
   className = '',
 }) => {
+  // Clamp progress between 0 and 100
+  const clampedProgress = Math.min(100, Math.max(0, progress));
+  
   return (
     <div 
       className={`w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden ${className}`}
@@ -21,7 +24,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
       <div
         className={`${color} transition-all duration-300 ease-in-out`}
         style={{ 
-          width: `${progress}%`,
+          width: `${clampedProgress}%`,
           height: '100%',
         }}
       />
