@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { folderService } from '../services/folderService.js';
+import Folder from '../models/Folder.js';
 
 const router = express.Router();
 
@@ -80,15 +81,33 @@ router.post('/create', async (req, res) => {
   }
 });
 
+// Get folders in trash
+router.get('/trash', async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const trashedFolders = await Folder.find({ userId, isDeleted: true }).sort({ deletedAt: -1 });
+    res.json(trashedFolders);
+  } catch (error) {
+    console.error('Error getting trashed folders:', error);
+    res.status(500).json({ message: error.message || 'Failed to get trashed folders' });
+  }
+});
+
 // Delete a folder
 router.delete('/delete/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const { permanent } = req.query; // Check if permanent deletion is requested
     const userId = req.user._id;
 
-    await folderService.deleteFolder(userId, id);
+    const result = await folderService.deleteFolder(userId, id, permanent === 'true');
     
-    res.json({ message: 'Folder deleted successfully', folderId: id });
+    res.json({ 
+      message: permanent === 'true' ? 'Folder permanently deleted' : 'Folder moved to trash', 
+      folderId: id,
+      permanent: permanent === 'true',
+      result 
+    });
   } catch (error) {
     console.error('Error deleting folder:', error);
     res.status(500).json({ message: error.message || 'Failed to delete folder' });

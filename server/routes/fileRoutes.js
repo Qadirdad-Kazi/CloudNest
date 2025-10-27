@@ -5,6 +5,7 @@ import { fileService } from '../services/fileService.js';
 import { v2 as cloudinary } from 'cloudinary';
 import mongoose from 'mongoose';
 import { File } from '../models/File.js';
+import Folder from '../models/Folder.js';
 import { bucket } from '../config/mongodb.js';
 
 const router = express.Router();
@@ -257,15 +258,16 @@ router.delete('/trash/empty', authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // Get all files in trash
+    // Get all files AND folders in trash
     const trashedFiles = await fileService.getTrashFiles(userId);
+    const trashedFolders = await Folder.find({ userId, isDeleted: true });
     
-    if (!trashedFiles || trashedFiles.length === 0) {
+    if ((!trashedFiles || trashedFiles.length === 0) && (!trashedFolders || trashedFolders.length === 0)) {
       return res.json({ message: 'Trash is already empty' });
     }
 
     // Delete each file permanently
-    const deletePromises = trashedFiles.map(async (file) => {
+    const fileDeletePromises = trashedFiles.map(async (file) => {
       try {
         // Delete from cloud storage if applicable
         if (file.cloudProvider === 'cloudinary' && file.cloudId) {
@@ -290,19 +292,33 @@ router.delete('/trash/empty', authenticate, async (req, res) => {
         // Delete file document regardless of cloud storage deletion success
         await File.deleteOne({ _id: file._id });
         console.log(`File document deleted from database: ${file._id}`);
-        return { success: true, fileId: file._id };
+        return { success: true, id: file._id, type: 'file' };
       } catch (error) {
         console.error(`Error deleting file ${file._id}:`, error);
-        return { success: false, fileId: file._id, error };
+        return { success: false, id: file._id, type: 'file', error };
       }
     });
 
-    const results = await Promise.all(deletePromises);
+    // Delete each folder permanently
+    const folderDeletePromises = trashedFolders.map(async (folder) => {
+      try {
+        await Folder.deleteOne({ _id: folder._id });
+        console.log(`Folder permanently deleted from database: ${folder._id}`);
+        return { success: true, id: folder._id, type: 'folder' };
+      } catch (error) {
+        console.error(`Error deleting folder ${folder._id}:`, error);
+        return { success: false, id: folder._id, type: 'folder', error };
+      }
+    });
+
+    const results = await Promise.all([...fileDeletePromises, ...folderDeletePromises]);
     const successCount = results.filter(r => r.success).length;
     const failCount = results.length - successCount;
+    const filesDeleted = results.filter(r => r.success && r.type === 'file').length;
+    const foldersDeleted = results.filter(r => r.success && r.type === 'folder').length;
     
     if (failCount > 0) {
-      console.log(`Warning: ${failCount} out of ${results.length} files had errors during deletion`);
+      console.log(`Warning: ${failCount} out of ${results.length} items had errors during deletion`);
     }
     
     res.json({ 
@@ -310,7 +326,13 @@ router.delete('/trash/empty', authenticate, async (req, res) => {
         ? `Trash emptied with some issues (${successCount} deleted, ${failCount} failed)` 
         : 'Trash emptied successfully',
       success: true,
-      stats: { total: results.length, success: successCount, failed: failCount }
+      stats: { 
+        total: results.length, 
+        success: successCount, 
+        failed: failCount,
+        filesDeleted,
+        foldersDeleted
+      }
     });
   } catch (error) {
     console.error('Error emptying trash:', error);

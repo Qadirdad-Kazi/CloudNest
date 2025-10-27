@@ -102,7 +102,7 @@ export const folderService = {
   },
 
   // Delete a folder
-  async deleteFolder(userId, folderId) {
+  async deleteFolder(userId, folderId, permanent = false) {
     try {
       const folder = await Folder.findOne({ _id: folderId, userId });
       
@@ -110,12 +110,18 @@ export const folderService = {
         throw new Error('Folder not found');
       }
       
-      // Soft delete the folder
-      folder.isDeleted = true;
-      folder.deletedAt = new Date();
-      await folder.save();
-      
-      return folder;
+      if (permanent) {
+        // Permanently delete the folder
+        await Folder.deleteOne({ _id: folderId, userId });
+        console.log(`Folder permanently deleted: ${folderId}`);
+        return { deleted: true, folderId };
+      } else {
+        // Soft delete the folder
+        folder.isDeleted = true;
+        folder.deletedAt = new Date();
+        await folder.save();
+        return folder;
+      }
     } catch (error) {
       console.error('Error deleting folder:', error);
       throw error;
