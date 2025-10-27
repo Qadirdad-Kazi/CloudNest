@@ -89,12 +89,20 @@ const startServer = async () => {
     // Create HTTP server for WebSocket support
     const server = http.createServer(app);
     
-    // Initialize WebSocket server
-    websocketService.initialize(server);
+    // Initialize WebSocket server (only works in non-serverless environments)
+    try {
+      if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+        websocketService.initialize(server);
+        console.log('✅ WebSocket server initialized');
+      } else {
+        console.log('⚠️ WebSocket not available in serverless environment (Vercel)');
+      }
+    } catch (error) {
+      console.warn('⚠️ WebSocket initialization failed (expected in serverless):', error.message);
+    }
     
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
-      console.log(`WebSocket server available at ws://localhost:${PORT}/ws`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

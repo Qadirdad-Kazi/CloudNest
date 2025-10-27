@@ -31,12 +31,12 @@ class WebSocketClient {
 
       // Build WebSocket URL with /ws path
       const wsUrl = API_CONFIG.WS_URL.replace(/^http/, 'ws') + `/ws?token=${token}`;
-      console.log('Connecting to WebSocket:', wsUrl);
+      console.log('Attempting WebSocket connection...');
       
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('✅ WebSocket connected');
+        console.log('✅ WebSocket connected - Real-time updates enabled');
         this.reconnectAttempts = 0;
         this.reconnectTimeout = 1000;
         this.isConnecting = false;
@@ -47,20 +47,25 @@ class WebSocketClient {
       };
 
       this.ws.onclose = () => {
-        console.log('❌ WebSocket disconnected');
+        console.log('WebSocket disconnected');
         this.isConnecting = false;
         this.handleReconnect();
       };
 
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.debug('WebSocket connection failed (expected on serverless platforms)');
         this.isConnecting = false;
       };
 
     } catch (error) {
-      console.error('Error creating WebSocket:', error);
+      console.debug('WebSocket not available (expected on serverless platforms)');
       this.isConnecting = false;
-      this.handleReconnect();
+      // Don't retry on security errors (CSP blocks)
+      if (error instanceof Error && error.message.includes('insecure')) {
+        this.reconnectAttempts = this.maxReconnectAttempts;
+      } else {
+        this.handleReconnect();
+      }
     }
   }
 
@@ -88,7 +93,11 @@ class WebSocketClient {
   private handleReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+      
+      // Only log on first few attempts
+      if (this.reconnectAttempts <= 2) {
+        console.log(`WebSocket reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+      }
       
       setTimeout(() => {
         this.connect();
@@ -97,7 +106,7 @@ class WebSocketClient {
       // Exponential backoff
       this.reconnectTimeout *= 2;
     } else {
-      console.error('Max reconnection attempts reached');
+      console.log('⚠️ Real-time updates unavailable (serverless environment). Using polling fallback.');
     }
   }
 

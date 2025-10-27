@@ -17,7 +17,7 @@ export const fileService = {
   async broadcastStorageUpdate(userId) {
     try {
       const user = await User.findById(userId).select('storageUsed storageLimit');
-      if (user) {
+      if (user && websocketService && websocketService.broadcastStorageUpdate) {
         const storagePercentage = user.storageLimit > 0 
           ? (user.storageUsed / user.storageLimit) * 100 
           : 0;
@@ -32,7 +32,8 @@ export const fileService = {
         });
       }
     } catch (error) {
-      console.error('Error broadcasting storage update:', error);
+      // Silent fail if WebSocket not available
+      console.debug('WebSocket broadcast skipped:', error.message);
     }
   },
 

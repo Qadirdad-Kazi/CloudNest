@@ -27,14 +27,20 @@ router.post('/', async (req, res) => {
     
     await notification.save();
     
-    // Broadcast notification in real-time via WebSocket
-    websocketService.broadcastNotification(req.user._id.toString(), {
-      id: notification._id,
-      type: notification.type,
-      message: notification.message,
-      read: notification.read,
-      createdAt: notification.createdAt
-    });
+    // Broadcast notification in real-time via WebSocket (if available)
+    try {
+      if (websocketService && websocketService.broadcastNotification) {
+        websocketService.broadcastNotification(req.user._id.toString(), {
+          id: notification._id,
+          type: notification.type,
+          message: notification.message,
+          read: notification.read,
+          createdAt: notification.createdAt
+        });
+      }
+    } catch (wsError) {
+      console.debug('WebSocket broadcast skipped:', wsError.message);
+    }
     
     res.status(201).json(notification);
   } catch (error) {

@@ -19,17 +19,23 @@ const createNotification = async (req, res) => {
 
     await notification.save();
 
-    // Broadcast notification in real-time via WebSocket
-    websocketService.broadcastNotification(userId.toString(), {
-      id: notification._id,
-      type: notification.type,
-      title: notification.title,
-      message: notification.message,
-      read: notification.read,
-      createdAt: notification.createdAt,
-      relatedItemId: notification.relatedItemId,
-      relatedItemType: notification.relatedItemType
-    });
+    // Broadcast notification in real-time via WebSocket (if available)
+    try {
+      if (websocketService && websocketService.broadcastNotification) {
+        websocketService.broadcastNotification(userId.toString(), {
+          id: notification._id,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          read: notification.read,
+          createdAt: notification.createdAt,
+          relatedItemId: notification.relatedItemId,
+          relatedItemType: notification.relatedItemType
+        });
+      }
+    } catch (wsError) {
+      console.debug('WebSocket broadcast skipped:', wsError.message);
+    }
 
     res.status(201).json(notification);
   } catch (error) {
