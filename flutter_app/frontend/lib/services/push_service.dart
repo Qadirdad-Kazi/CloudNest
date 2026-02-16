@@ -12,11 +12,29 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   debugPrint('Background: ${message.messageId}');
   
+  // Initialize local notifications for background
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  
   // Show notification when app is in background
-  await _showNotification(
+  const AndroidNotificationDetails androidPlatformChannelSpecifics =
+      AndroidNotificationDetails(
+        '@mipmap/ic_launcher',
+        'CloudNest',
+        channelDescription: 'CloudNest notifications',
+        importance: Importance.max,
+        priority: Priority.high,
+      );
+  
+  const NotificationDetails platformChannelSpecifics =
+      NotificationDetails(android: androidPlatformChannelSpecifics);
+  
+  await flutterLocalNotificationsPlugin.show(
+    0,
     message.notification?.title ?? 'CloudNest',
     message.notification?.body ?? 'New notification',
-    message.data,
+    platformChannelSpecifics,
+    payload: message.data.toString(),
   );
 }
 
@@ -26,7 +44,8 @@ class PushService {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   
   // Local notifications
-  static final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
 
   PushService._internal();
 
@@ -37,8 +56,13 @@ class PushService {
       // Initialize local notifications
       const AndroidInitializationSettings initializationSettingsAndroid =
           AndroidInitializationSettings('@mipmap/ic_launcher');
+      
       const DarwinInitializationSettings initializationSettingsIOS =
-          DarwinInitializationSettings();
+          DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
       
       const InitializationSettings initializationSettings = InitializationSettings(
         android: initializationSettingsAndroid,
@@ -55,21 +79,32 @@ class PushService {
         debugPrint('FCM Token: $token');
         
         // Save token to local storage
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('fcm_token', token);
+        if (token != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('fcm_token', token);
+        }
         
         // Handle foreground messages
         FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
         FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
         
         // Handle token refresh
-        FirebaseMessaging.onTokenRefresh.listen((token) {
+        _fcm.onTokenRefresh.listen((token) {
           debugPrint('FCM Token refreshed: $token');
-          prefs.setString('fcm_token', token);
+          _saveToken(token);
         });
       }
     } catch (e) {
       debugPrint('PushService: $e');
+    }
+  }
+
+  Future<void> _saveToken(String token) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('fcm_token', token);
+    } catch (e) {
+      debugPrint('Failed to save token: $e');
     }
   }
 
@@ -80,7 +115,7 @@ class PushService {
     await _showNotification(
       message.notification?.title ?? 'CloudNest',
       message.notification?.body ?? 'New notification',
-      message.data,
+      message.data?.cast<String, String>(),
     );
   }
 
@@ -105,17 +140,18 @@ class PushService {
   }
 
   static Future<void> _showNotification(String title, String body, Map<String, String>? data) async {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      '@mipmap/ic_launcher',
-      title,
-      body,
-      importance: Importance.high,
-      priority: Priority.high,
-      autoCancel: true,
-    );
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+          '@mipmap/ic_launcher',
+          'CloudNest',
+          channelDescription: 'CloudNest notifications',
+          importance: Importance.max,
+          priority: Priority.high,
+          autoCancel: true,
+        );
 
-    const NotificationDetails platformDetails = NotificationDetails(
-      android: androidDetails,
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
       iOS: const DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
@@ -127,7 +163,7 @@ class PushService {
       0,
       title,
       body,
-      platformDetails,
+      platformChannelSpecifics,
       payload: data?.toString(),
     );
   }

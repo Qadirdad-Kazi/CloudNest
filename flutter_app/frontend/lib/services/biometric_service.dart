@@ -15,7 +15,7 @@ class BiometricService {
   // Check if biometric authentication is available
   Future<bool> get isAvailable async {
     try {
-      return await _auth.canCheckBiometrics() && await _auth.isDeviceSupported();
+      return await _auth.canCheckBiometrics && await _auth.isDeviceSupported();
     } catch (e) {
       debugPrint('Biometric check failed: $e');
       return false;
@@ -33,10 +33,10 @@ class BiometricService {
   }
 
   // Check if user has enabled biometric login
-  Future<bool> get isBiometricEnabled() async {
+  Future<bool> get isBiometricEnabled async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool('biometric_enabled', false);
+      return prefs.getBool('biometric_enabled') ?? false;
     } catch (e) {
       return false;
     }
@@ -50,7 +50,7 @@ class BiometricService {
       
       if (!enabled) {
         // Clear stored credentials when disabled
-        await _secureStorage.delete('biometric_token');
+        await _secureStorage.delete(key: 'biometric_token');
       }
     } catch (e) {
       debugPrint('Failed to set biometric enabled: $e');
@@ -68,8 +68,8 @@ class BiometricService {
         return useFallback; // Allow fallback to password
       }
 
-      final isAvailable = await isAvailable();
-      if (!isAvailable) {
+      final biometricAvailable = await isAvailable();
+      if (!biometricAvailable) {
         return useFallback;
       }
 
@@ -98,6 +98,11 @@ class BiometricService {
 
   // Authenticate with biometrics for sensitive operations
   Future<bool> authenticateForSensitiveOperation(String operation) async {
+    final biometricAvailable = await isAvailable();
+    if (!biometricAvailable) {
+      return false;
+    }
+    
     return await authenticate(
       reason: 'Authenticate to $operation',
       useFallback: false, // No fallback for sensitive operations

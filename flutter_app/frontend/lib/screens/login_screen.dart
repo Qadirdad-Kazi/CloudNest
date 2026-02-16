@@ -86,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
                   FutureBuilder<bool>(
-                    future: BiometricService().hasBiometrics,
+                    future: BiometricService().isAvailable,
                     builder: (context, snap) {
                       if (snap.data != true) return const SizedBox.shrink();
                       return Padding(

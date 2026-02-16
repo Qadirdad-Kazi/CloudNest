@@ -25,7 +25,8 @@ class WidgetService {
       final fileService = FileService();
       
       try {
-        final recentFiles = await fileService.getRecentFiles(5);
+        // For now, return empty recent files since getRecentFiles doesn't exist
+        final recentFiles = <Map<String, dynamic>>[];
         final storageInfo = await _getStorageInfo();
         
         // Save to preferences for widget access
@@ -197,11 +198,11 @@ class WidgetService {
       final prefs = await SharedPreferences.getInstance();
       
       return {
-        'showRecentFiles': prefs.getBool('widget_show_recent_files', true),
-        'showStorageInfo': prefs.getBool('widget_show_storage_info', true),
-        'maxRecentFiles': prefs.getInt('widget_max_recent_files', 5),
-        'autoUpdate': prefs.getBool('widget_auto_update', true),
-        'updateInterval': prefs.getInt('widget_update_interval', 15), // minutes
+        'showRecentFiles': prefs.getBool('widget_show_recent_files') ?? true,
+        'showStorageInfo': prefs.getBool('widget_show_storage_info') ?? true,
+        'maxRecentFiles': prefs.getInt('widget_max_recent_files') ?? 5,
+        'autoUpdate': prefs.getBool('widget_auto_update') ?? true,
+        'updateInterval': prefs.getInt('widget_update_interval') ?? 15, // minutes
       };
     } catch (e) {
       return {

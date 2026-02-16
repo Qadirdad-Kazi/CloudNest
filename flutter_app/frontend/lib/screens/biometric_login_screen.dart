@@ -73,26 +73,21 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen> {
       if (isAuthenticated) {
         // Login with stored credentials
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final success = await authProvider.login(
-          credentials['email'] ?? '',
-          credentials['password'] ?? '',
-        );
-
-        if (success) {
-          // Initialize services after successful login
-          await _initializeServices();
-          
-          if (mounted) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const DashboardScreen()),
-            );
-          }
-        } else {
-          _showError('Login failed with stored credentials');
+        await authProvider.loginWithBiometric();
+        // Initialize services after successful login
+        await _initializeServices();
+        
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          );
         }
       } else {
-        _showError('Biometric authentication failed');
+        _showError('Login failed with stored credentials');
       }
+    } else {
+      _showError('Biometric authentication failed');
+    }
     } catch (e) {
       _showError('Authentication error: $e');
     } finally {

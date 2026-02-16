@@ -12,6 +12,9 @@ import imageRoutes from './routes/imageRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import shareLinkRoutes from './routes/shareLinkRoutes.js';
+import fileSearchRoutes from './routes/fileSearchRoutes.js';
+import fileTagRoutes from './routes/fileTagRoutes.js';
+import fileCommentRoutes from './routes/fileCommentRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import mongoose from 'mongoose';
 import cloudinary from './config/cloudinary.js';
@@ -67,6 +70,9 @@ app.use('/api/images', imageRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/shares', shareLinkRoutes);
+app.use('/api/search', fileSearchRoutes);
+app.use('/api/tags', fileTagRoutes);
+app.use('/api/comments', fileCommentRoutes);
 
 // Friendly root route for Vercel
 app.get('/', (req, res) => {

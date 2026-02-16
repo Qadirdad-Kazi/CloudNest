@@ -41,7 +41,7 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> _checkBiometricStatus() async {
     try {
-      _biometricEnabled = await _biometricService.isBiometricEnabled();
+      _biometricEnabled = await _biometricService.isBiometricEnabled;
       notifyListeners();
     } catch (e) {
       debugPrint('Failed to check biometric status: $e');

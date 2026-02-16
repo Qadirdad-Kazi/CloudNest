@@ -38,7 +38,6 @@ class BackgroundSyncService {
         frequency: const Duration(minutes: 15),
         constraints: Constraints(
           networkType: NetworkType.connected,
-          requiresNotCharging: false,
           requiresCharging: false,
           requiresDeviceIdle: false,
           requiresStorageNotLow: true,
