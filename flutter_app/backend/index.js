@@ -17,6 +17,7 @@ import fileTagRoutes from './routes/fileTagRoutes.js';
 import fileCommentRoutes from './routes/fileCommentRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import securityRoutes from './routes/securityRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import mongoose from 'mongoose';
 import cloudinary from './config/cloudinary.js';
@@ -79,6 +80,7 @@ app.use('/api/tags', fileTagRoutes);
 app.use('/api/comments', fileCommentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Friendly root route for Vercel
 app.get('/', (req, res) => {

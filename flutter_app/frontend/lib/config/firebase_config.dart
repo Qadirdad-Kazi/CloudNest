@@ -1,6 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:firebase_core_web/firebase_core_web.dart' show FirebaseCoreWeb;
 
 class FirebaseConfig {
   // Replace these with your actual Firebase project credentials
@@ -23,7 +22,7 @@ class FirebaseConfig {
   static Future<void> initializeFirebase() async {
     try {
       if (kIsWeb) {
-        await FirebaseCoreWeb.initializeApp(options: _options);
+        await Firebase.initializeApp(options: _options);
       } else {
         await Firebase.initializeApp(options: _options);
       }
@@ -36,11 +35,7 @@ class FirebaseConfig {
 
   static bool get isInitialized {
     try {
-      if (kIsWeb) {
-        return FirebaseCoreWeb.app != null;
-      } else {
-        return Firebase.apps.isNotEmpty;
-      }
+      return Firebase.apps.isNotEmpty;
     } catch (e) {
       return false;
     }
