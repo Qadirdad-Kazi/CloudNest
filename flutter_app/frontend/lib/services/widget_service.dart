@@ -33,7 +33,7 @@ class WidgetService {
         final prefs = await SharedPreferences.getInstance();
         
         // Save recent files as JSON
-        final recentFilesJson = recentFiles.map((file) => {
+        final recentFilesJson = recentFiles.map((file) {
           if (file is Map<String, dynamic>) {
             return {
               'id': file['id'] ?? '',

@@ -83,11 +83,8 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen> {
           );
         }
       } else {
-        _showError('Login failed with stored credentials');
+        _showError('Biometric authentication failed');
       }
-    } else {
-      _showError('Biometric authentication failed');
-    }
     } catch (e) {
       _showError('Authentication error: $e');
     } finally {
