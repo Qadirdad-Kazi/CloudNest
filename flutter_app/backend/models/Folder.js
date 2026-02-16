@@ -52,6 +52,4 @@ folderSchema.methods.updateLastAccessed = function() {
   return this.save();
 };
 
-const Folder = mongoose.model('Folder', folderSchema);
-
-export default Folder;
+export const Folder = mongoose.model('Folder', folderSchema);

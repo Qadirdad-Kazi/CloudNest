@@ -51,6 +51,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = '';
@@ -66,32 +67,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (isOffline) {
         final cachedFiles = await OfflineService().getCachedFiles(_currentPath);
         final cachedFolders = await OfflineService().getCachedFolders(_currentPath);
-        setState(() {
-          _files = cachedFiles;
-          _folders = cachedFolders;
-          _loading = false;
-          _error = cachedFiles.isEmpty && cachedFolders.isEmpty ? 'Offline - no cached data' : '';
-        });
+        if (mounted) {
+          setState(() {
+            _files = cachedFiles;
+            _folders = cachedFolders;
+            _loading = false;
+            _error = cachedFiles.isEmpty && cachedFolders.isEmpty ? 'Offline - no cached data' : '';
+          });
+        }
       } else {
         final files = await _fileService.getFiles(path: _currentPath);
         final folders = await _fileService.getFolders(path: _currentPath);
         await OfflineService().cacheFiles(_currentPath, files);
         await OfflineService().cacheFolders(_currentPath, folders);
-        setState(() {
-          _files = files;
-          _folders = folders;
-          _loading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _files = files;
+            _folders = folders;
+            _loading = false;
+          });
+        }
       }
     } catch (e) {
       final cachedFiles = await OfflineService().getCachedFiles(_currentPath);
       final cachedFolders = await OfflineService().getCachedFolders(_currentPath);
-      setState(() {
-        _files = cachedFiles;
-        _folders = cachedFolders;
-        _error = cachedFiles.isEmpty && cachedFolders.isEmpty ? e.toString() : '';
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _files = cachedFiles;
+          _folders = cachedFolders;
+          _error = cachedFiles.isEmpty && cachedFolders.isEmpty ? e.toString() : '';
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -118,7 +125,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File uploaded')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File uploaded successfully')));
         _loadData();
       }
     } catch (e) {
@@ -295,8 +302,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: Text(folder.name),
                     onTap: () {
                       Navigator.pop(ctx);
-                      setState(() => _currentPath = folder.path);
-                      _loadData();
+                      if (mounted) {
+                        setState(() => _currentPath = folder.path);
+                        _loadData();
+                      }
                     },
                   );
                 }
@@ -366,12 +375,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               final isLast = e.key == _breadcrumbs.length - 1;
               return InkWell(
                 onTap: isLast ? null : () {
-                  if (e.key == 0) {
-                    setState(() => _currentPath = '/');
-                  } else {
-                    setState(() => _currentPath = '/' + _breadcrumbs.sublist(1, e.key + 1).join('/'));
+                  if (mounted) {
+                    if (e.key == 0) {
+                      setState(() => _currentPath = '/');
+                    } else {
+                      setState(() => _currentPath = '/' + _breadcrumbs.sublist(1, e.key + 1).join('/'));
+                    }
+                    _loadData();
                   }
-                  _loadData();
                 },
                 child: Text(
                   e.value,
@@ -449,8 +460,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       name: f.name,
                                       starred: f.starred,
                                       onTap: () {
-                                        setState(() => _currentPath = f.path);
-                                        _loadData();
+                                        if (mounted) {
+                                          setState(() => _currentPath = f.path);
+                                          _loadData();
+                                        }
                                       },
                                       onStar: () => _starItem(f),
                                       onShare: () => _shareItem(f),

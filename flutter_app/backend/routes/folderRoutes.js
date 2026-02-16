@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { folderService } from '../services/folderService.js';
-import Folder from '../models/Folder.js';
+import { Folder } from '../models/Folder.js';
 
 const router = express.Router();
 

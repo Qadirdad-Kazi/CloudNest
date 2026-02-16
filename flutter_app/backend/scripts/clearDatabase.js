@@ -5,7 +5,7 @@ import readline from 'readline';
 // Import all models
 import User from '../models/User.js';
 import { File } from '../models/File.js'; // Named export
-import Folder from '../models/Folder.js';
+import { Folder } from '../models/Folder.js';
 import Notification from '../models/Notification.js';
 import ShareLink from '../models/ShareLink.js';
 import Suggestion from '../models/Suggestion.js';

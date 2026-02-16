@@ -11,6 +11,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import imageRoutes from './routes/imageRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import shareLinkRoutes from './routes/shareLinkRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import mongoose from 'mongoose';
 import cloudinary from './config/cloudinary.js';
@@ -31,7 +32,7 @@ const corsOptions = {
     ? (process.env.ALLOWED_ORIGINS
         ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
         : ['https://cloudnest.qadirdadkazi.com', 'https://cloudnest.vercel.app'])
-    : ['http://localhost:5173', 'http://localhost:3000'],
+    : ['http://localhost:5173', 'http://localhost:3000', /^http:\/\/localhost:\d+$/],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
@@ -65,6 +66,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/shares', shareLinkRoutes);
 
 // Friendly root route for Vercel
 app.get('/', (req, res) => {

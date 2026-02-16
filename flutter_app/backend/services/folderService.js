@@ -1,4 +1,4 @@
-import Folder from '../models/Folder.js';
+import { Folder } from '../models/Folder.js';
 
 export const folderService = {
   // Create a new folder

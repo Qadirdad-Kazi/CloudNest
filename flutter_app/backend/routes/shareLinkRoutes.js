@@ -2,8 +2,8 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import ShareLink from '../models/ShareLink.js';
-import File from '../models/File.js';
-import Folder from '../models/Folder.js';
+import { File } from '../models/File.js';
+import { Folder } from '../models/Folder.js';
 
 const router = express.Router();
 

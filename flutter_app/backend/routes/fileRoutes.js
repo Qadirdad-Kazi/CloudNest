@@ -5,7 +5,7 @@ import { fileService } from '../services/fileService.js';
 import { v2 as cloudinary } from 'cloudinary';
 import mongoose from 'mongoose';
 import { File } from '../models/File.js';
-import Folder from '../models/Folder.js';
+import { Folder } from '../models/Folder.js';
 import { bucket } from '../config/mongodb.js';
 
 const router = express.Router();
