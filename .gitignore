@@ -4,7 +4,8 @@
 .env.development.local
 .env.test.local
 .env.production.local
-server/.env
+Web/server/.env
+app_server/.env
 
 # Dependencies
 node_modules/
@@ -13,10 +14,12 @@ node_modules/
 # Build outputs
 /dist
 /build
-/client/dist
-/client/build
-/server/dist
-/server/build
+/Web/dist
+/Web/build
+/Web/server/dist
+/Web/server/build
+/app_server/dist
+/app_server/build
 .vite/
 
 # Logs
@@ -45,6 +48,23 @@ lerna-debug.log*
 
 # Debug
 .pnpm-debug.log*
+
+# Flutter
+flutter_app/.dart_tool/
+flutter_app/.packages
+flutter_app/build/
+flutter_app/*.iml
+flutter_app/.idea/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/android/.gradle/
+flutter_app/android/local.properties
+flutter_app/ios/Flutter/flutter_export_environment.sh
+flutter_app/ios/Pods/
+flutter_app/linux/flutter/ephemeral/
+flutter_app/macos/Flutter/ephemeral/
+flutter_app/web/.dart_tool/
+flutter_app/windows/flutter/ephemeral/
 
 # Misc
 .cache/
