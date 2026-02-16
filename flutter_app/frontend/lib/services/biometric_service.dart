@@ -64,11 +64,11 @@ class BiometricService {
   }) async {
     try {
       // Check if biometric is enabled
-      if (!await isBiometricEnabled()) {
+      if (!await isBiometricEnabled) {
         return useFallback; // Allow fallback to password
       }
 
-      final biometricAvailable = await isAvailable();
+      final biometricAvailable = await isAvailable;
       if (!biometricAvailable) {
         return useFallback;
       }
@@ -85,7 +85,7 @@ class BiometricService {
 
       if (result) {
         // Store authentication timestamp for session management
-        await _secureStorage.write('biometric_auth_time', 
+        await _secureStorage.write(key: 'biometric_auth_time', value: 
           DateTime.now().toIso8601String());
       }
 
@@ -98,7 +98,7 @@ class BiometricService {
 
   // Authenticate with biometrics for sensitive operations
   Future<bool> authenticateForSensitiveOperation(String operation) async {
-    final biometricAvailable = await isAvailable();
+    final biometricAvailable = await isAvailable;
     if (!biometricAvailable) {
       return false;
     }
@@ -129,11 +129,11 @@ class BiometricService {
 
   // Get user-friendly biometric status
   Future<String> getBiometricStatus() async {
-    if (!await isAvailable()) {
+    if (!await isAvailable) {
       return 'Not Available';
     }
     
-    if (!await isBiometricEnabled()) {
+    if (!await isBiometricEnabled) {
       return 'Disabled';
     }
     
@@ -149,7 +149,7 @@ class BiometricService {
   // Check if last biometric authentication is still valid (within 5 minutes)
   Future<bool> isRecentAuthentication() async {
     try {
-      final authTime = await _secureStorage.read('biometric_auth_time');
+      final authTime = await _secureStorage.read(key: 'biometric_auth_time');
       if (authTime == null) return false;
       
       final lastAuth = DateTime.parse(authTime);
@@ -166,9 +166,9 @@ class BiometricService {
   // Store credentials for quick login (encrypted)
   Future<void> storeCredentials(String email, String password) async {
     try {
-      await _secureStorage.write('biometric_email', email);
-      await _secureStorage.write('biometric_password', password);
-      await _secureStorage.write('biometric_stored', 'true');
+      await _secureStorage.write(key: 'biometric_email', value: email);
+      await _secureStorage.write(key: 'biometric_password', value: password);
+      await _secureStorage.write(key: 'biometric_stored', value: 'true');
     } catch (e) {
       debugPrint('Failed to store credentials: $e');
     }
@@ -177,15 +177,15 @@ class BiometricService {
   // Get stored credentials for quick login
   Future<Map<String, String>?> getStoredCredentials() async {
     try {
-      final isStored = await _secureStorage.read('biometric_stored');
+      final isStored = await _secureStorage.read(key: 'biometric_stored');
       if (isStored != 'true') return {};
       
-      final email = await _secureStorage.read('biometric_email');
-      final password = await _secureStorage.read('biometric_password');
+      final email = await _secureStorage.read(key: 'biometric_email');
+      final password = await _secureStorage.read(key: 'biometric_password');
       
       return {
-        'email': email,
-        'password': password,
+        'email': email ?? '',
+        'password': password ?? '',
       };
     } catch (e) {
       return {};
@@ -195,10 +195,10 @@ class BiometricService {
   // Clear stored credentials
   Future<void> clearStoredCredentials() async {
     try {
-      await _secureStorage.delete('biometric_email');
-      await _secureStorage.delete('biometric_password');
-      await _secureStorage.delete('biometric_stored');
-      await _secureStorage.delete('biometric_auth_time');
+      await _secureStorage.delete(key: 'biometric_email');
+      await _secureStorage.delete(key: 'biometric_password');
+      await _secureStorage.delete(key: 'biometric_stored');
+      await _secureStorage.delete(key: 'biometric_auth_time');
     } catch (e) {
       debugPrint('Failed to clear credentials: $e');
     }

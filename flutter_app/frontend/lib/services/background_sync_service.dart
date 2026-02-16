@@ -220,11 +220,13 @@ Future<void> _processUploadQueue() async {
         final uploadData = _parseUploadData(uploadDataStr);
         if (uploadData == null) continue;
         
-        // Check if file still exists
-        final file = File(uploadData['filePath']);
-        if (!await file.exists()) {
-          debugPrint('File no longer exists: ${uploadData['filePath']}');
-          continue;
+        // Check if file still exists (skip for web)
+        if (!kIsWeb) {
+          final file = File(uploadData['filePath'] ?? '');
+          if (!await file.exists()) {
+            debugPrint('File no longer exists: ${uploadData['filePath']}');
+            continue;
+          }
         }
         
         // Check retry count

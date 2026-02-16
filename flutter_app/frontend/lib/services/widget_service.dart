@@ -34,15 +34,20 @@ class WidgetService {
         
         // Save recent files as JSON
         final recentFilesJson = recentFiles.map((file) => {
-          'id': file.id,
-          'name': file.name,
-          'type': file.type,
-          'size': file.size,
-          'path': file.path,
-          'url': file.url,
-          'starred': file.starred,
-          'modifiedAt': file.modifiedAt?.toIso8601String(),
-        }).toList();
+          if (file is Map<String, dynamic>) {
+            return {
+              'id': file['id'] ?? '',
+              'name': file['name'] ?? '',
+              'type': file['type'] ?? '',
+              'size': file['size'] ?? 0,
+              'path': file['path'] ?? '',
+              'url': file['url'] ?? '',
+              'starred': file['starred'] ?? false,
+              'modifiedAt': file['modifiedAt']?.toString() ?? '',
+            };
+          }
+          return {};
+        }).where((map) => map['id']?.isNotEmpty).toList();
         
         await prefs.setString(_recentFilesKey, recentFilesJson.toString());
         await prefs.setString(_storageInfoKey, storageInfo.toString());
