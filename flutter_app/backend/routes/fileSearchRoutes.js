@@ -3,7 +3,7 @@ import { authenticate } from '../middleware/auth.js';
 import { File } from '../models/File.js';
 import { Folder } from '../models/Folder.js';
 import { FileTag } from '../models/FileTag.js';
-import { User } from '../models/User.js';
+import User from '../models/User.js';
 
 const router = express.Router();
 

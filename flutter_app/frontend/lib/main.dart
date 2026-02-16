@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'theme/app_theme.dart';
+import 'config/firebase_config.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -24,11 +24,13 @@ import 'services/widget_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase with proper configuration
+  await FirebaseConfig.initializeFirebase();
   
-  // Initialize mobile services
-  await _initializeMobileServices();
+  // Initialize mobile services (only if not web)
+  if (!kIsWeb) {
+    await _initializeMobileServices();
+  }
   
   runApp(const CloudNestApp());
 }

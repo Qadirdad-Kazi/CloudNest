@@ -16,12 +16,14 @@ import fileSearchRoutes from './routes/fileSearchRoutes.js';
 import fileTagRoutes from './routes/fileTagRoutes.js';
 import fileCommentRoutes from './routes/fileCommentRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
+import securityRoutes from './routes/securityRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import mongoose from 'mongoose';
 import cloudinary from './config/cloudinary.js';
 import http from 'http';
 import websocketService from './services/websocketService.js';
 import AnalyticsService from './services/analyticsService.js';
+import SecurityService from './services/securityService.js';
 
 dotenv.config();
 
@@ -76,6 +78,7 @@ app.use('/api/search', fileSearchRoutes);
 app.use('/api/tags', fileTagRoutes);
 app.use('/api/comments', fileCommentRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/security', securityRoutes);
 
 // Friendly root route for Vercel
 app.get('/', (req, res) => {
