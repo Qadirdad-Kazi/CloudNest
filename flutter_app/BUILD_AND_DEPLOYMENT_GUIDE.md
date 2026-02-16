@@ -13,25 +13,46 @@
 
 ```
 flutter_app/
-├── app_server/          # Node.js backend server
-│   ├── config/         # Database and Cloudinary config
-│   ├── controllers/    # API controllers
-│   ├── models/         # Database models
-│   ├── routes/         # API routes
-│   ├── services/       # Business logic services
-│   ├── middleware/     # Express middleware
-│   ├── scripts/        # Utility scripts
-│   ├── uploads/        # Local file uploads
-│   ├── package.json    # Node.js dependencies
-│   └── index.js        # Server entry point
-├── lib/                # Flutter app source code
-├── android/            # Android platform code
-├── ios/                # iOS platform code
-├── web/                # Web platform code
-├── windows/            # Windows desktop code
-├── linux/              # Linux desktop code
-├── macos/              # macOS desktop code
-└── pubspec.yaml        # Flutter dependencies
+├── frontend/              # Flutter mobile application
+│   ├── lib/              # Dart source code
+│   ├── android/          # Android platform code
+│   ├── ios/              # iOS platform code
+│   ├── web/              # Web platform code
+│   ├── windows/          # Windows desktop code
+│   ├── linux/            # Linux desktop code
+│   ├── macos/            # macOS desktop code
+│   ├── test/             # Test files
+│   ├── pubspec.yaml      # Flutter dependencies
+│   ├── analysis_options.yaml
+│   ├── .metadata
+│   ├── .gitignore
+│   ├── .idea/
+│   ├── .dart_tool/
+│   ├── .flutter-plugins-dependencies
+│   ├── cloudnest_flutter.iml
+│   └── README.md         # Frontend-specific documentation
+├── backend/              # Node.js backend server
+│   ├── config/           # Database and Cloudinary config
+│   ├── controllers/      # API controllers
+│   ├── models/           # Database models
+│   ├── routes/           # API routes
+│   ├── services/         # Business logic services
+│   ├── middleware/       # Express middleware
+│   ├── scripts/          # Utility scripts
+│   ├── uploads/          # Local file uploads
+│   ├── utils/            # Helper utilities
+│   ├── app.js            # Express app setup
+│   ├── index.js          # Server entry point
+│   ├── package.json      # Node.js dependencies
+│   ├── package-lock.json
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── debug-auth.js
+│   ├── vercel.json
+│   ├── node_modules/
+│   └── README.md         # Backend-specific documentation
+├── BUILD_AND_DEPLOYMENT_GUIDE.md  # This file
+└── README.md             # Main project documentation
 ```
 
 ## Prerequisites
@@ -54,11 +75,11 @@ flutter_app/
 
 ## Setup Instructions
 
-### 1. Flutter App Setup
+### 1. Flutter Frontend Setup
 
 ```bash
-# Navigate to flutter_app directory
-cd flutter_app
+# Navigate to frontend directory
+cd flutter_app/frontend
 
 # Install Flutter dependencies
 flutter pub get
@@ -70,8 +91,8 @@ flutter doctor
 ### 2. Backend Server Setup
 
 ```bash
-# Navigate to app_server directory
-cd app_server
+# Navigate to backend directory
+cd flutter_app/backend
 
 # Install Node.js dependencies
 npm install
@@ -94,20 +115,22 @@ cp .env.example .env
 
 #### Start Backend Server:
 ```bash
-cd flutter_app/app_server
+cd flutter_app/backend
 npm run dev  # Uses nodemon for auto-restart
 ```
 
-#### Start Flutter App:
+#### Start Flutter Frontend:
 
 **For Chrome (Web):**
 ```bash
-cd flutter_app
+cd flutter_app/frontend
 flutter run -d chrome --web-port 3000
 ```
 
 **For Mobile Devices:**
 ```bash
+cd flutter_app/frontend
+
 # Android
 flutter run -d android
 
@@ -120,6 +143,8 @@ flutter devices
 
 **For Desktop:**
 ```bash
+cd flutter_app/frontend
+
 # Windows
 flutter run -d windows
 
@@ -134,13 +159,13 @@ flutter run -d linux
 
 #### Start Backend Server:
 ```bash
-cd flutter_app/app_server
+cd flutter_app/backend
 npm start
 ```
 
 #### Start Flutter App in Release Mode:
 ```bash
-cd flutter_app
+cd flutter_app/frontend
 flutter run --release -d chrome
 ```
 
@@ -148,26 +173,35 @@ flutter run --release -d chrome
 
 ### Web Application
 ```bash
+# Navigate to frontend directory
+cd flutter_app/frontend
+
 # Build for web
 flutter build web
 
-# Output: flutter_app/build/web/
+# Output: flutter_app/frontend/build/web/
 # Can be deployed to any static hosting service
 ```
 
 ### Android Application
 ```bash
+# Navigate to frontend directory
+cd flutter_app/frontend
+
 # Build APK
 flutter build apk --release
 
 # Build App Bundle (Recommended for Play Store)
 flutter build appbundle --release
 
-# Output: flutter_app/build/app/outputs/
+# Output: flutter_app/frontend/build/app/outputs/
 ```
 
 ### iOS Application
 ```bash
+# Navigate to frontend directory
+cd flutter_app/frontend
+
 # Build for iOS (macOS only)
 flutter build ios --release
 
@@ -178,26 +212,35 @@ open ios/Runner.xcworkspace
 
 ### Windows Desktop
 ```bash
+# Navigate to frontend directory
+cd flutter_app/frontend
+
 # Build Windows executable
 flutter build windows --release
 
-# Output: flutter_app/build/windows/runner/Release/
+# Output: flutter_app/frontend/build/windows/runner/Release/
 ```
 
 ### Linux Desktop
 ```bash
+# Navigate to frontend directory
+cd flutter_app/frontend
+
 # Build Linux executable
 flutter build linux --release
 
-# Output: flutter_app/build/linux/
+# Output: flutter_app/frontend/build/linux/
 ```
 
 ### macOS Desktop
 ```bash
+# Navigate to frontend directory
+cd flutter_app/frontend
+
 # Build macOS app
 flutter build macos --release
 
-# Output: flutter_app/build/macos/Build/Products/Release/
+# Output: flutter_app/frontend/build/macos/Build/Products/Release/
 ```
 
 ## Server Integration
@@ -207,8 +250,8 @@ flutter build macos --release
 **The backend server must be running separately** - it is NOT automatically integrated when you build the Flutter app. Here's what you need to know:
 
 #### During Development:
-1. **Start the server first**: `cd app_server && npm run dev`
-2. **Then run the Flutter app**: `flutter run -d chrome`
+1. **Start the server first**: `cd flutter_app/backend && npm run dev`
+2. **Then run the Flutter app**: `cd flutter_app/frontend && flutter run -d chrome`
 3. The Flutter app connects to the server at `http://localhost:5001`
 
 #### For Production Deployment:
@@ -272,13 +315,13 @@ flutter build web
 
 #### Vercel Serverless (Already Configured)
 ```bash
-cd app_server
+cd flutter_app/backend
 vercel --prod
 ```
 
 #### Heroku
 ```bash
-cd app_server
+cd flutter_app/backend
 heroku create your-app-name
 git push heroku main
 ```
@@ -311,16 +354,19 @@ pm2 start index.js --name "cloudnest-server"
 ### 4. Desktop App Distribution
 
 #### Windows
+- Navigate to frontend: `cd flutter_app/frontend`
 - Build executable: `flutter build windows --release`
 - Create installer using tools like Inno Setup or WiX Toolset
 - Distribute via website or Microsoft Store
 
 #### macOS
+- Navigate to frontend: `cd flutter_app/frontend`
 - Build app: `flutter build macos --release`
 - Create .dmg installer
 - Distribute via website or Mac App Store
 
 #### Linux
+- Navigate to frontend: `cd flutter_app/frontend`
 - Build executable: `flutter build linux --release`
 - Create .deb or .rpm packages
 - Distribute via website or Snap Store
