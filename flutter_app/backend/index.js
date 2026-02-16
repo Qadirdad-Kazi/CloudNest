@@ -15,11 +15,13 @@ import shareLinkRoutes from './routes/shareLinkRoutes.js';
 import fileSearchRoutes from './routes/fileSearchRoutes.js';
 import fileTagRoutes from './routes/fileTagRoutes.js';
 import fileCommentRoutes from './routes/fileCommentRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import mongoose from 'mongoose';
 import cloudinary from './config/cloudinary.js';
 import http from 'http';
 import websocketService from './services/websocketService.js';
+import AnalyticsService from './services/analyticsService.js';
 
 dotenv.config();
 
@@ -73,6 +75,7 @@ app.use('/api/shares', shareLinkRoutes);
 app.use('/api/search', fileSearchRoutes);
 app.use('/api/tags', fileTagRoutes);
 app.use('/api/comments', fileCommentRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Friendly root route for Vercel
 app.get('/', (req, res) => {
