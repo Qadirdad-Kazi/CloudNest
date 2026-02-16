@@ -1,7 +1,7 @@
 import { Analytics } from '../models/Analytics.js';
 import { FileActivity } from '../models/FileActivity.js';
 import { File } from '../models/File.js';
-import { User } from '../models/User.js';
+import User from '../models/User.js';
 
 class AnalyticsService {
   // Record file activity

@@ -3,8 +3,8 @@ import { authenticate } from '../middleware/auth.js';
 import { Analytics } from '../models/Analytics.js';
 import { FileActivity } from '../models/FileActivity.js';
 import { File } from '../models/File.js';
-import { User } from '../models/User.js';
-import { ShareLink } from '../models/ShareLink.js';
+import User from '../models/User.js';
+import ShareLink from '../models/ShareLink.js';
 
 const router = express.Router();
 

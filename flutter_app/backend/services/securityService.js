@@ -2,7 +2,7 @@ import { SecurityAudit } from '../models/SecurityAudit.js';
 import { TwoFactorAuth } from '../models/TwoFactorAuth.js';
 import { AccessControl } from '../models/AccessControl.js';
 import { DataRetentionPolicy } from '../models/DataRetentionPolicy.js';
-import { User } from '../models/User.js';
+import User from '../models/User.js';
 import { File } from '../models/File.js';
 import speakeasy from 'speakeasy';
 import crypto from 'crypto';
